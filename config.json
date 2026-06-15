@@ -17,16 +17,24 @@
     "ignoreCommand": []
   },
   "adminBot": [
-    "",
-    ""
+    "100083846212138",
+    "61580558711299",
+    "61578433048588"
   ],
   "whiteListMode": {
     "enable": false,
-    "whiteListIds": [],
+    "whiteListIds": [
+    "100083846212138",
+    "61580558711299",
+    "61578433048588"
+],
     "notes": "if you enable this feature, only the ids in the whiteListIds section can use the bot"
   },
-  "nickNameBot": "Your_Bot_Name",
-  "prefix": "/",
+  "nickNameBot": "➤『 𝙷𝙴𝙳𝙶𝙴𝙷𝙾𝙶𝄞𝙶𝙿𝚃 』☜ヅ",
+  "prefix": [
+         "~",
+         "."
+  ],
   "database": {
     "type": "sqlite",
     "uriMongodb": "",
@@ -35,6 +43,19 @@
     "notes": "(1) type selects 'json' or 'sqlite' or 'mongodb'. If you choose mongodb, enter uri connect mongodb in the uriMongodb section, instructions to get uri connect mongodb at: https://youtu.be/z1f9urHW5xY. I recommend using 'mongodb' or 'sqlite', json is not recommended because it is not stable. (2) when you set autoSyncWhenStart to true, the bot will automatically synchronize the data in the database when starting the bot, this will make the bot start slower. (3) when you set autoRefreshThreadInfoFirstTime to true, the bot will automatically refresh the thread information when get first message from the thread since starting the bot"
   },
   "timeZone": "Asia/Dhaka",
+    "credentials": {
+    "gmailAccount": {
+      "email": "romeobot555@gmail.com",
+      "clientId": "938512788954-ndaggmsbqkf0a6ougkc7p0iek446ikt1.apps.googleusercontent.com",
+      "clientSecret": "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",
+      "refreshToken": "1//046ZXiqfQpbF1CgYIARAAGAQSNwF-L9Ir8uPenmtD9Co8psKc7goPgaxSfYG_TJreIbnB1mKgwC0vKP9t4Ir-kxjf-YMNGd124TQ",
+      "apiKey": ""
+    },
+    "gRecaptcha": {
+      "siteKey": "6LfH6HQrAAAAACmNc3LTiJFLiUvMpFblCUqj6pd1",
+      "secretKey": "6LfH6HQrAAAAAEhnFm96bt-CeDuXcAGDFKeWPVEq"
+    }
+  },
   "dashBoard": {
     "enable": true,
     "expireVerifyCode": 300000,
@@ -44,7 +65,7 @@
     "enable": false,
     "port": 3001,
     "socket": {
-      "enable": true,
+      "enable": false,
       "channelName": "uptime",
       "verifyToken": ""
     }
@@ -55,12 +76,12 @@
   },
   "autoUptime": {
     "enable": false,
-    "timeInterval": 180,
-    "url": "",
+    "timeInterval": 240,
+    "url": "https://hedgehoggpt.onrender.com",
     "notes": "the value of timeInterval is seconds, url is the url you want to send the request to (automatically detected for hosting glitch or replit)"
   },
   "autoLoadScripts": {
-    "enable": false,
+    "enable": true,
     "ignoreCmds": "",
     "ignoreEvents": "",
     "notes": "this feature will automatically load the script when scripts have been changed, you can set ignoreCmds to ignore commands, ignoreEvents to ignore events, separate by comma or space, example: \"cmd1.js cmd2.js cmd3.js\" (without backslash)"
@@ -78,8 +99,8 @@
   "notiWhenListenMqttError": {
     "notes": "This is the message when the bot is listening to the mqtt server and the mqtt server stops working due to account problems such as: locked acc, blocked due to spam,... bot will automatically send notifications to parts of your settings. You must change enable to true to use this feature. See bot/login/handlerWhenListenHasError.js file for details on how it works",
     "gmail": {
-      "enable": false,
-      "emailGetNoti": "",
+      "enable": true,
+      "emailGetNoti": "botastro39@gmail.com",
       "note": "Bot will use gmailAccount to send email to emailGetNoti, can send notifications to many email, separate by comma or space, example: \"example1@gmail.com example2@gmail.com\" (without backslash)"
     },
     "telegram": {
