@@ -32,8 +32,7 @@
   },
   "nickNameBot": "➤『 𝙷𝙴𝙳𝙶𝙴𝙷𝙾𝙶𝄞𝙶𝙿𝚃 』☜ヅ",
   "prefix": [
-         "~",
-         "."
+         "~"
   ],
   "database": {
     "type": "sqlite",
