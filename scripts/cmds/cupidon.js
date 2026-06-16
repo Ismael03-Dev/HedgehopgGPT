@@ -243,7 +243,7 @@ async function generateScroll(type, name1, name2, lovePercent) {
 module.exports = {
   config: {
     name: "cupidon",
-    version: "6.0",
+    version: "8.0",
     author: "Itachi Soma",
     role: 0,
     category: "fun",
@@ -308,7 +308,7 @@ module.exports = {
       );
 
       await sleep(1500);
-      await api.editMessage("", loadingMsg.messageID);
+      await api.unsendMessage(loadingMsg.messageID, event.threadID);
       await sleep(500);
 
       const threadInfo = await api.getThreadInfo(threadID);
