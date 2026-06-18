@@ -204,7 +204,7 @@ module.exports = {
     if (!sub || sub === "help") {
       return message.reply(UI([
         "🎲 SIC BO — 3 DICE", "---",
-        `${p}sicbo petit/grand <bet>`,
+        `${p}sicbo small/big <bet>`,
         `${p}sicbo total <bet> <4-17>`,
         `${p}sicbo triple <bet> [1-6/any]`,
         `${p}sicbo double <bet> [1-6/any]`,
@@ -226,7 +226,7 @@ module.exports = {
     }
 
     const betType = sub;
-    const validTypes = ["petit","grand","total","triple","double","simple","combo"];
+    const validTypes = ["small","big","total","triple","double","simple","combo"];
     if (!validTypes.includes(betType)) return message.reply(UI(["❌ Unknown bet type", `📝 ${p}sicbo help`]));
 
     const amount = await parseAmount(args[1]);
