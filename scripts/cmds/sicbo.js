@@ -43,10 +43,9 @@ const SFX = {
   sx:10n**21n, sp:10n**24n, oc:10n**27n, no:10n**30n, dc:10n**33n,
   udc:10n**36n, ddc:10n**39n, tdc:10n**42n, qadc:10n**45n, qidc:10n**48n,
   sxdc:10n**51n, spdc:10n**54n, ocdc:10n**57n, nodc:10n**60n,
-  kn:10n**63n, mn:10n**66n, bn:10n**69n, tn:10n**72n,
-  qan:10n**75n, qin:10n**78n, sxn:10n**81n, spn:10n**84n,
-  ocn:10n**87n, non:10n**90n, dcn:10n**93n, ui:10n**96n,
-  di:10n**99n, ti:10n**102n, qi_i:10n**105n, qii:10n**108n,
+  kn:10n**63n, mn:10n**66n, bn:10n**69n, tn:10n**72n, qan:10n**75n, qin:10n**78n,
+  sxn:10n**81n, spn:10n**84n, ocn:10n**87n, non:10n**90n, dcn:10n**93n,
+  ui:10n**96n, di:10n**99n, ti:10n**102n, qi_i:10n**105n, qii:10n**108n,
   sxi:10n**111n, spi:10n**114n, oci:10n**117n, noi:10n**120n, dci:10n**123n,
   uv:10n**126n, dv:10n**129n, tv:10n**132n, qv:10n**135n, qiv:10n**138n,
   sxv:10n**141n, spv:10n**144n, ocv:10n**147n, nov:10n**150n, dcv:10n**153n,
@@ -57,75 +56,82 @@ const SFX = {
   uq:10n**216n, dq:10n**219n, tq:10n**222n, qq:10n**225n, qiq:10n**228n,
   sxq:10n**231n, spq:10n**234n, ocq:10n**237n, noq:10n**240n, dcq:10n**243n,
   uc:10n**246n, du:10n**249n, tu:10n**252n, qu:10n**255n, qiu:10n**258n,
-  inf: MAX_LIMIT, infinity: MAX_LIMIT, "∞": MAX_LIMIT
+  inf: MAX_LIMIT, infinity: MAX_LIMIT
 };
 
 function toBigInt(v) {
   if (typeof v === "bigint") return v;
   if (v === undefined || v === null) return 0n;
   if (String(v).toLowerCase().includes("infinity") || String(v).includes("∞")) return MAX_LIMIT;
-  try {
-    const clean = String(v).split(".")[0].replace(/[^0-9\-]/g, "") || "0";
-    const result = BigInt(clean);
-    if (result >= MAX_LIMIT) return MAX_LIMIT;
-    if (result <= -MAX_LIMIT) return -MAX_LIMIT;
-    return result;
-  } catch { return 0n; }
+  try { const clean = String(v).split(".")[0].replace(/[^0-9\-]/g, "") || "0"; const r = BigInt(clean); if (r >= MAX_LIMIT) return MAX_LIMIT; if (r <= -MAX_LIMIT) return -MAX_LIMIT; return r; } catch { return 0n; }
 }
 
 async function formatNumber(num) {
-  const big = toBigInt(num);
-  if (big === 0n) return "0";
-  if (big >= MAX_LIMIT || big <= -MAX_LIMIT) return "∞";
-  try {
-    const r = await axios.get(`${FORMAT_URL}?n=${big.toString()}`, { timeout: 3000 });
-    if (r.data?.success) { if (r.data.isInfinity) return "∞"; return r.data.formatted; }
-  } catch {}
+  const big = toBigInt(num); if (big === 0n) return "0"; if (big >= MAX_LIMIT || big <= -MAX_LIMIT) return "∞";
+  try { const r = await axios.get(`${FORMAT_URL}?n=${big.toString()}`, { timeout: 3000 }); if (r.data?.success) { if (r.data.isInfinity) return "∞"; return r.data.formatted; } } catch {}
   const neg = big < 0n; const abs = neg ? -big : big;
-  for (const tier of TIERS) {
-    if (abs >= tier.v) {
-      const intPart = abs / tier.v; const remainder = abs % tier.v; const decPart = (remainder * 100n) / tier.v;
-      const prefix = neg ? "-" : "";
-      if (decPart > 0n) { const dec = Number(decPart).toString().padStart(2, "0").slice(0, 2).replace(/0+$/, ""); if (dec === "") return `${prefix}${intPart}${tier.s}`; return `${prefix}${intPart}.${dec}${tier.s}`; }
-      return `${prefix}${intPart}${tier.s}`;
-    }
-  }
+  for (const tier of TIERS) { if (abs >= tier.v) { const intPart = abs / tier.v; const remainder = abs % tier.v; const decPart = (remainder * 100n) / tier.v; const prefix = neg ? "-" : ""; if (decPart > 0n) { const dec = Number(decPart).toString().padStart(2, "0").slice(0, 2).replace(/0+$/, ""); if (dec === "") return `${prefix}${intPart}${tier.s}`; return `${prefix}${intPart}.${dec}${tier.s}`; } return `${prefix}${intPart}${tier.s}`; } }
   return (neg ? "-" : "") + abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
 async function parseAmount(input) {
-  if (!input) return 0n;
-  const str = String(input).toLowerCase().trim();
+  if (!input) return 0n; const str = String(input).toLowerCase().trim();
   if (str === "inf" || str === "infinity" || str === "∞") return MAX_LIMIT;
   try { const r = await axios.get(`${FORMAT_URL}?n=${encodeURIComponent(str)}`, { timeout: 5000 }); if (r.data?.success && r.data?.raw) return toBigInt(r.data.raw); } catch {}
   const m = str.match(/^(-?\d+(?:\.\d+)?)([a-z]+)?$/i); if (!m) return 0n;
-  const val = parseFloat(m[1]); const sfx = (m[2] || "").toLowerCase();
-  if (isNaN(val)) return 0n;
+  const val = parseFloat(m[1]); const sfx = (m[2] || "").toLowerCase(); if (isNaN(val)) return 0n;
   const base = BigInt(Math.floor(Math.abs(val))); const neg = val < 0;
   if (!sfx) return neg ? -base : base;
-  const mult = SFX[sfx];
-  if (mult) { const result = neg ? -(base * mult) : base * mult; if (result >= MAX_LIMIT || result <= -MAX_LIMIT) return neg ? -MAX_LIMIT : MAX_LIMIT; return result; }
+  const mult = SFX[sfx]; if (mult) { const result = neg ? -(base * mult) : base * mult; if (result >= MAX_LIMIT || result <= -MAX_LIMIT) return neg ? -MAX_LIMIT : MAX_LIMIT; return result; }
   return neg ? -base : base;
 }
 
-async function getUserCash(uid) {
-  try { const r = await axios.get(`${CASH_URL}/${uid}`, { timeout: 10000 }); if (r.data?.success && r.data?.data) { const cash = toBigInt(r.data.data.cash); return cash >= MAX_LIMIT ? MAX_LIMIT : cash; } } catch {}
-  return 0n;
-}
+async function getUserCash(uid) { try { const r = await axios.get(`${CASH_URL}/${uid}`, { timeout: 10000 }); if (r.data?.success && r.data?.data) { const cash = toBigInt(r.data.data.cash); return cash >= MAX_LIMIT ? MAX_LIMIT : cash; } } catch {} return 0n; }
+async function updateUserCash(uid, amount) { const a = toBigInt(amount); try { if (a > 0n) { await axios.post(`${CASH_URL}/${uid}/add`, { amount: a.toString() }); return true; } else if (a < 0n) { await axios.post(`${CASH_URL}/${uid}/subtract`, { amount: (-a).toString() }); return true; } return true; } catch (e) { return false; } }
 
-async function updateUserCash(uid, amount) {
-  const a = toBigInt(amount);
-  try { if (a > 0n) { await axios.post(`${CASH_URL}/${uid}/add`, { amount: a.toString() }); return true; } else if (a < 0n) { await axios.post(`${CASH_URL}/${uid}/subtract`, { amount: (-a).toString() }); return true; } return true; } catch (e) { return false; }
-}
-
-function getUserName(uid, api) { return new Promise(resolve => { api.getUserInfo(uid, (err, data) => { const n = data?.[uid]?.name; resolve((n && n !== "Facebook User") ? n : `User_${String(uid).slice(-5)}`); }); }); }
-
+function getUserName(uid, api) { return new Promise(resolve => { api.getUserInfo(uid, (err, data) => { const n = data?.[uid]?.name; resolve((n && n !== "Facebook User" && n !== "Utilisateur") ? n : `User_${String(uid).slice(-5)}`); }); }); }
 async function getUserAvatar(uid, api) { try { const d = await api.getUserInfo(uid); return d[uid]?.thumbSrc || `https://graph.facebook.com/${uid}/picture?width=200&height=200`; } catch { return `https://graph.facebook.com/${uid}/picture?width=200&height=200`; } }
 
 function rollDice() { return [Math.floor(Math.random()*6)+1, Math.floor(Math.random()*6)+1, Math.floor(Math.random()*6)+1]; }
 
 const DICE_EMOJI = { 1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅" };
 const DICE_GLOW = { 1: "#ef4444", 2: "#f97316", 3: "#fbbf24", 4: "#22c55e", 5: "#3b82f6", 6: "#a855f7" };
+
+const DICE_PIPS = {
+  1: [[0,0]],
+  2: [[-1,-1],[1,1]],
+  3: [[-1,-1],[0,0],[1,1]],
+  4: [[-1,-1],[-1,1],[1,-1],[1,1]],
+  5: [[-1,-1],[-1,1],[0,0],[1,-1],[1,1]],
+  6: [[-1,-1],[-1,0],[-1,1],[1,-1],[1,0],[1,1]]
+};
+
+function drawDiceFace(ctx, cx, cy, size, value, glowColor) {
+  const s = size;
+  const pipR = s * 0.08;
+
+  const bg = ctx.createLinearGradient(cx - s/2, cy - s/2, cx + s/2, cy + s/2);
+  bg.addColorStop(0, "#1a2820"); bg.addColorStop(1, "#0d1a10");
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.roundRect(cx - s/2, cy - s/2, s, s, 12); ctx.fill();
+
+  ctx.strokeStyle = glowColor + "88"; ctx.lineWidth = 2; ctx.stroke();
+
+  const radGlow = ctx.createRadialGradient(cx, cy, 4, cx, cy, s * 0.55);
+  radGlow.addColorStop(0, glowColor + "30"); radGlow.addColorStop(0.5, glowColor + "14"); radGlow.addColorStop(1, "transparent");
+  ctx.fillStyle = radGlow;
+  ctx.beginPath(); ctx.roundRect(cx - s/2 + 2, cy - s/2 + 2, s - 4, s - 4, 10); ctx.fill();
+
+  const pips = DICE_PIPS[value] || [];
+  const spacing = s * 0.28;
+  for (const [px, py] of pips) {
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(cx + px * spacing, cy + py * spacing, pipR, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
 
 function evaluateBet(betType, betValue, dice) {
   const sum = dice[0]+dice[1]+dice[2];
@@ -148,7 +154,7 @@ async function generateSicboCard({ username, betDisplay, bet, win, winAmount, ne
   const borderG=ctx.createLinearGradient(0,0,W,H);borderG.addColorStop(0,win?"#50c878":"#ef4444");borderG.addColorStop(0.5,win?"#1a7a40":"#7f1d1d");borderG.addColorStop(1,win?"#50c878":"#ef4444");ctx.strokeStyle=borderG;ctx.lineWidth=3;roundRect(ctx,10,10,W-20,H-20,20);ctx.stroke();
   const hdrG=ctx.createLinearGradient(0,0,W,0);hdrG.addColorStop(0,(win?"#50c878":"#ef4444")+"28");hdrG.addColorStop(0.5,"rgba(0,0,0,0)");hdrG.addColorStop(1,(win?"#50c878":"#ef4444")+"28");ctx.fillStyle=hdrG;ctx.fillRect(10,10,W-20,68);
 
-  ctx.font="bold 22px 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji','Courier New'";ctx.fillStyle="#50c878";ctx.shadowColor="#50c878";ctx.shadowBlur=14;ctx.fillText("🎲 HEDGEHOG SIC BO",28,50);ctx.shadowBlur=0;
+  ctx.font="bold 22px 'Courier New'";ctx.fillStyle="#50c878";ctx.shadowColor="#50c878";ctx.shadowBlur=14;ctx.fillText("🎲 HEDGEHOG SIC BO",28,50);ctx.shadowBlur=0;
   ctx.font="10px 'Courier New'";ctx.fillStyle="rgba(80,200,120,0.55)";ctx.fillText("CASINO • PREMIUM",30,66);
 
   const ax=W-54,ay=48;ctx.save();ctx.beginPath();ctx.arc(ax,ay,30,0,Math.PI*2);ctx.clip();
@@ -166,14 +172,12 @@ async function generateSicboCard({ username, betDisplay, bet, win, winAmount, ne
 
   for(let i=0;i<3;i++){
     const dx=startX+i*(diceSize+diceGap),dval=dice[i],glowColor=DICE_GLOW[dval]||"#50c878";
-    const diceBg2=ctx.createLinearGradient(dx,diceY,dx,diceY+diceSize);diceBg2.addColorStop(0,"#1a2820");diceBg2.addColorStop(1,"#0d1a10");ctx.fillStyle=diceBg2;roundRect(ctx,dx,diceY,diceSize,diceSize,12);ctx.fill();
-    ctx.strokeStyle=isTriple?"rgba(255,215,0,0.8)":glowColor+"88";ctx.lineWidth=isTriple?2.5:2;ctx.shadowColor=isTriple?"#ffd700":glowColor;ctx.shadowBlur=isTriple?14:8;ctx.stroke();ctx.shadowBlur=0;
-    const radGlow=ctx.createRadialGradient(dx+diceSize/2,diceY+diceSize/2,4,dx+diceSize/2,diceY+diceSize/2,diceSize*.55);radGlow.addColorStop(0,glowColor+(isTriple?"50":"30"));radGlow.addColorStop(0.5,glowColor+"14");radGlow.addColorStop(1,"transparent");ctx.fillStyle=radGlow;roundRect(ctx,dx+2,diceY+2,diceSize-4,diceSize-4,10);ctx.fill();
+    drawDiceFace(ctx, dx + diceSize/2, diceY + diceSize/2, diceSize, dval, glowColor);
 
-    ctx.shadowColor=glowColor;ctx.shadowBlur=isTriple?28:18;
-    ctx.font="50px 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji'";ctx.textAlign="center";ctx.fillStyle="#ffffff";ctx.fillText(DICE_EMOJI[dval],dx+diceSize/2,diceY+diceSize/2+18);ctx.shadowBlur=0;ctx.textAlign="left";
-
-    if(isTriple){ctx.strokeStyle="#ffd700";ctx.lineWidth=2.5;ctx.shadowColor="#ffd700";ctx.shadowBlur=16;roundRect(ctx,dx,diceY,diceSize,diceSize,12);ctx.stroke();ctx.shadowBlur=0;}
+    if(isTriple){
+      ctx.strokeStyle="#ffd700";ctx.lineWidth=2.5;ctx.shadowColor="#ffd700";ctx.shadowBlur=16;
+      ctx.beginPath();ctx.roundRect(dx,diceY,diceSize,diceSize,12);ctx.stroke();ctx.shadowBlur=0;
+    }
   }
 
   if(isTriple){ctx.font="bold 13px 'Courier New'";ctx.fillStyle="#ffd700";ctx.shadowColor="#ffd700";ctx.shadowBlur=10;ctx.textAlign="center";ctx.fillText("✦ TRIPLE ! ✦",W/2,dzY+dzH-8);ctx.shadowBlur=0;ctx.textAlign="left";}
@@ -190,31 +194,19 @@ async function generateSicboCard({ username, betDisplay, bet, win, winAmount, ne
   for(let i=0;i<cols.length;i++){const cx=28+i*colW;ctx.fillStyle="rgba(255,255,255,0.045)";roundRect(ctx,cx+4,statsY-16,colW-8,54,8);ctx.fill();ctx.strokeStyle=cols[i].color+"22";ctx.lineWidth=1;ctx.stroke();ctx.font="8px 'Courier New'";ctx.fillStyle="rgba(255,255,255,0.38)";ctx.fillText(cols[i].label,cx+10,statsY);ctx.font=`bold ${cols[i].value.length>10?"11":"14"}px 'Courier New'`;ctx.fillStyle=cols[i].color;ctx.shadowColor=cols[i].color;ctx.shadowBlur=5;ctx.fillText(cols[i].value,cx+10,statsY+26);ctx.shadowBlur=0;}
 
   ctx.font="9px 'Courier New'";ctx.fillStyle="rgba(255,255,255,0.3)";ctx.fillText(`DICE TOTAL: ${sum}`,28,H-46);
-  const d=new Date();ctx.font="8px 'Courier New'";ctx.fillStyle=(win?"#50c878":"#ef4444")+"44";ctx.textAlign="center";ctx.fillText(`HEDGEHOG SIC BO • ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} • ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`,W/2,H-18);ctx.textAlign="left";
+  const d2=new Date();ctx.font="8px 'Courier New'";ctx.fillStyle=(win?"#50c878":"#ef4444")+"44";ctx.textAlign="center";ctx.fillText(`HEDGEHOG SIC BO • ${d2.getDate()}/${d2.getMonth()+1}/${d2.getFullYear()} • ${String(d2.getHours()).padStart(2,"0")}:${String(d2.getMinutes()).padStart(2,"0")}`,W/2,H-18);ctx.textAlign="left";
   return canvas.toBuffer("image/png");
 }
 
 module.exports = {
-  config: { name: "sicbo", version: "9.0", author: "Itachi Soma", countDown: 3, role: 0, category: "fun", shortDescription: { en: "Sic Bo - 3 Dice Game" } },
+  config: { name: "sicbo", version: "10.0", author: "Itachi Soma", countDown: 3, role: 0, category: "fun", shortDescription: { en: "Sic Bo - 3 Dice Game" } },
 
   onStart: async function ({ args, message, event, api }) {
     const uid = String(event.senderID); const p = global.utils.getPrefix(event.threadID); const sub = args[0]?.toLowerCase();
     let imageMode = true;
 
     if (!sub || sub === "help") {
-      return message.reply(UI([
-        "🎲 SIC BO — 3 DICE", "---",
-        `${p}sicbo small/big <bet>`,
-        `${p}sicbo total <bet> <4-17>`,
-        `${p}sicbo triple <bet> [1-6/any]`,
-        `${p}sicbo double <bet> [1-6/any]`,
-        `${p}sicbo simple <bet> <1-6>`,
-        `${p}sicbo combo <bet> <1-6> <1-6>`,
-        `${p}sicbo bonus`, "---",
-        "💎 Specific Triple → x180",
-        "💎 Any Triple → x30",
-        "💎 Extreme Total (4/17) → x60"
-      ]));
+      return message.reply(UI(["🎲 SIC BO — 3 DICE", "---", `${p}sicbo petit/grand <bet>`, `${p}sicbo total <bet> <4-17>`, `${p}sicbo triple <bet> [1-6/any]`, `${p}sicbo double <bet> [1-6/any]`, `${p}sicbo simple <bet> <1-6>`, `${p}sicbo combo <bet> <1-6> <1-6>`, `${p}sicbo bonus`, "---", "💎 Specific Triple → x180", "💎 Any Triple → x30", "💎 Extreme Total (4/17) → x60"]));
     }
 
     const userMoney = await getUserCash(uid);
@@ -226,7 +218,7 @@ module.exports = {
     }
 
     const betType = sub;
-    const validTypes = ["small","big","total","triple","double","simple","combo"];
+    const validTypes = ["petit","grand","total","triple","double","simple","combo"];
     if (!validTypes.includes(betType)) return message.reply(UI(["❌ Unknown bet type", `📝 ${p}sicbo help`]));
 
     const amount = await parseAmount(args[1]);
