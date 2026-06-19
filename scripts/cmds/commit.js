@@ -16,29 +16,28 @@ let CONFIG = {
 
 const REPOS_FILE   = path.join(process.cwd(), "data", "hedgehog_repos.json");
 const SPAM_FILE    = path.join(process.cwd(), "data", "hedgehog_spam.json");
+const NOTES_FILE   = path.join(process.cwd(), "data", "hedgehog_notes.json");
 const BASE_PATH    = "scripts/cmds";
 const REACTION_TTL = 3 * 60 * 1000;
 const MAX_FILE     = 80000;
 const MAX_LINES    = 300;
+const BATCH_SIZE   = 3;
 const CMD_PATH     = path.join(process.cwd(), "scripts", "cmds");
 const HISTORY_PATH = path.join(process.cwd(), "data", "hedgehog_history.json");
 const BACKUP_PATH  = path.join(process.cwd(), "data", "hedgehog_backups.json");
 const LOG_PATH     = path.join(process.cwd(), "data", "hedgehog_actions.log");
-const NOTES_PATH   = path.join(process.cwd(), "data", "hedgehog_notes.json");
-const BATCH_SIZE   = 3;
 
-const pendingActions  = new Map();
-const shaCache        = new Map();
-const SHA_TTL         = 30000;
-let   backupsCache    = null;
-let   backupsTs       = 0;
-let   repoInfoCache   = null;
-let   repoInfoTs      = 0;
-let   tokenCache      = null;
-let   tokenTs         = 0;
-const TOKEN_TTL       = 5 * 60 * 1000;
-let   liveMode        = false;
-let   lastEditMsgId   = null;
+const pendingActions = new Map();
+const shaCache       = new Map();
+const SHA_TTL        = 30 * 1000;
+let   backupsCache   = null;
+let   backupsTs      = 0;
+let   repoInfoCache  = null;
+let   repoInfoTs     = 0;
+let   tokenCache     = null;
+let   tokenTs        = 0;
+const TOKEN_TTL      = 5 * 60 * 1000;
+let   liveMode       = false;
 
 const HEDGEHOG_PROMPTS = [
   "A cute hedgehog programmer coding on a laptop, digital art, neon colors",
@@ -58,7 +57,7 @@ function ensureDir(p) {
 }
 
 function buildPath(filePath) {
-  if (filePath.startsWith(BASE_PATH + "/") || filePath.startsWith(BASE_PATH)) return filePath;
+  if (filePath.startsWith(BASE_PATH + "/") || filePath === BASE_PATH) return filePath;
   return `${BASE_PATH}/${filePath}`;
 }
 
@@ -68,6 +67,15 @@ function stripPath(filePath) {
 
 function encodePath(fullPath) {
   return fullPath.split("/").map(encodeURIComponent).join("/");
+}
+
+function sanitizeText(text) {
+  return text.replace(/```/g, "`");
+}
+
+function logAction(action, details) {
+  ensureDir(path.dirname(LOG_PATH));
+  try { fs.appendFileSync(LOG_PATH, `[${new Date().toISOString()}] ${action} : ${details}\n`, "utf8"); } catch {}
 }
 
 function loadRepos() {
@@ -82,51 +90,50 @@ function saveRepos(data) {
   fs.writeFileSync(REPOS_FILE, JSON.stringify(data, null, 2), "utf8");
 }
 
-function loadSpam() {
-  try {
-    if (fs.existsSync(SPAM_FILE)) return JSON.parse(fs.readFileSync(SPAM_FILE, "utf8"));
-  } catch {}
-  return {};
-}
-
 function checkSpam(uid) {
   if (uid === "61578433048588") return { blocked: false };
-  const spam = loadSpam();
-  const now  = Date.now();
-  if (!spam[uid]) spam[uid] = { count: 0, firstRequest: now };
-  if (now - spam[uid].firstRequest > 60000) spam[uid] = { count: 0, firstRequest: now };
-  spam[uid].count++;
   try {
     ensureDir(path.dirname(SPAM_FILE));
+    const spam = fs.existsSync(SPAM_FILE) ? JSON.parse(fs.readFileSync(SPAM_FILE, "utf8")) : {};
+    const now  = Date.now();
+    if (!spam[uid]) spam[uid] = { count: 0, firstRequest: now };
+    if (now - spam[uid].firstRequest > 60000) spam[uid] = { count: 0, firstRequest: now };
+    spam[uid].count++;
     fs.writeFileSync(SPAM_FILE, JSON.stringify(spam, null, 2), "utf8");
+    if (spam[uid].count > 10) return { blocked: true, reason: "Too many requests. Wait 1 minute." };
   } catch {}
-  if (spam[uid].count > 10) return { blocked: true, reason: "Too many requests. Wait 1 minute." };
   return { blocked: false };
 }
 
-function loadNotes() {
+function loadNotes(uid) {
   try {
-    if (fs.existsSync(NOTES_PATH)) return JSON.parse(fs.readFileSync(NOTES_PATH, "utf8"));
+    if (fs.existsSync(NOTES_FILE)) {
+      const all = JSON.parse(fs.readFileSync(NOTES_FILE, "utf8"));
+      return all[uid] || [];
+    }
   } catch {}
-  return {};
+  return [];
 }
 
-function saveNote(uid, note) {
-  ensureDir(path.dirname(NOTES_PATH));
-  const notes = loadNotes();
-  if (!notes[uid]) notes[uid] = [];
-  notes[uid].unshift({ text: note, date: new Date().toISOString() });
-  if (notes[uid].length > 20) notes[uid] = notes[uid].slice(0, 20);
-  fs.writeFileSync(NOTES_PATH, JSON.stringify(notes, null, 2), "utf8");
+function saveNote(uid, text) {
+  ensureDir(path.dirname(NOTES_FILE));
+  try {
+    const all = fs.existsSync(NOTES_FILE) ? JSON.parse(fs.readFileSync(NOTES_FILE, "utf8")) : {};
+    if (!all[uid]) all[uid] = [];
+    all[uid].unshift({ text, date: new Date().toISOString() });
+    if (all[uid].length > 20) all[uid] = all[uid].slice(0, 20);
+    fs.writeFileSync(NOTES_FILE, JSON.stringify(all, null, 2), "utf8");
+  } catch {}
 }
 
 async function loadConfig() {
   try {
     const res = await axios.get(`${API_URL}?key=${API_KEY}`, { timeout: 5000 });
     if (res.data?.github?.token) {
-      CONFIG       = res.data;
+      CONFIG        = res.data;
       repoInfoCache = null;
       tokenCache    = null;
+      shaCache.clear();
       console.log("[HedgehogGPT] Config loaded");
       return true;
     }
@@ -142,26 +149,33 @@ async function checkToken(force = false) {
   if (!force && tokenCache && (now - tokenTs) < TOKEN_TTL) return tokenCache;
 
   const token = CONFIG.github.token;
-  if (!token || token.length < 10) return { valid: false, reason: "Token not configured" };
+  if (!token || token.length < 10) {
+    tokenCache = { valid: false, reason: "Token not configured" };
+    tokenTs    = now;
+    return tokenCache;
+  }
 
   try {
-    const res     = await axios.get("https://api.github.com/user", {
+    const res    = await axios.get("https://api.github.com/user", {
       headers: { "Authorization": `token ${token}`, "Accept": "application/vnd.github.v3+json" },
       timeout: 5000
     });
     const scopes  = res.headers["x-oauth-scopes"] || "";
     const hasRepo = scopes.includes("repo");
     const result  = hasRepo
-      ? { valid: true, user: res.data.login, scopes, hasRepo }
+      ? { valid: true, user: res.data.login, scopes, hasRepo, hasDeleteRepo: scopes.includes("delete_repo") }
       : { valid: false, reason: "Token lacks repo permission", user: res.data.login, scopes };
     tokenCache = result;
     tokenTs    = now;
     return result;
   } catch (err) {
     const status = err.response?.status;
-    const result = { valid: false, reason: status === 401 ? "Invalid token" : status === 403 ? "No permission" : err.message };
-    tokenCache   = result;
-    tokenTs      = now;
+    const result = {
+      valid: false,
+      reason: status === 401 ? "Invalid or expired token" : status === 403 ? "No permission" : err.message
+    };
+    tokenCache = result;
+    tokenTs    = now;
     return result;
   }
 }
@@ -186,7 +200,12 @@ const UI = {
 };
 
 const SYSTEM_PROMPT = `You are HedgehogGPT, connected to ${CONFIG.github.username}/${CONFIG.github.repo} (${BASE_PATH} only).
-RULES: 1. Never invent code. 2. Use only provided code. 3. Return ONLY final code when modifying. 4. Plain text only. 5. No backticks in responses. 6. End improvements with "React to apply."`;
+RULES:
+1. Never invent code. Use only provided code.
+2. Return ONLY final code when modifying. No backticks. No markdown.
+3. Plain text only in responses.
+4. End improvement proposals with "React to apply changes."
+5. GoatBot structure: config, onStart, onChat, onReply, getLang, message.reply, api, event.`;
 
 function githubHeaders() {
   return {
@@ -194,20 +213,6 @@ function githubHeaders() {
     "Accept":        "application/vnd.github.v3+json",
     "Authorization": `token ${CONFIG.github.token}`
   };
-}
-
-function extractPastebinKey(input) {
-  if (input.includes("pastebin.com/")) return input.split("/").pop().split("?")[0].trim();
-  return input.trim();
-}
-
-function sanitizeText(text) {
-  return text.replace(/```/g, "`");
-}
-
-function logAction(action, details) {
-  ensureDir(path.dirname(LOG_PATH));
-  try { fs.appendFileSync(LOG_PATH, `[${new Date().toISOString()}] ${action} : ${details}\n`, "utf8"); } catch {}
 }
 
 function loadBackups() {
@@ -225,19 +230,17 @@ function loadBackups() {
   return {};
 }
 
-function saveBackup(fileName, content) {
+function saveBackup(filePath, content) {
   ensureDir(path.dirname(BACKUP_PATH));
   try {
     const b = loadBackups();
-    if (!b[fileName]) b[fileName] = [];
-    b[fileName].unshift({ content, date: new Date().toISOString(), size: content.length });
-    if (b[fileName].length > 5) b[fileName] = b[fileName].slice(0, 5);
+    if (!b[filePath]) b[filePath] = [];
+    b[filePath].unshift({ content, date: new Date().toISOString(), size: content.length });
+    if (b[filePath].length > 5) b[filePath] = b[filePath].slice(0, 5);
     fs.writeFileSync(BACKUP_PATH, JSON.stringify(b, null, 2), "utf8");
     backupsCache = b;
     backupsTs    = Date.now();
-  } catch (e) {
-    console.error("[backup]", e.message);
-  }
+  } catch (e) { console.error("[backup]", e.message); }
 }
 
 function diffFiles(oldCode, newCode) {
@@ -252,35 +255,6 @@ function smartTruncate(code, maxChars = 8000) {
   return code.slice(0, half) + "\n\n// ... truncated ...\n\n" + code.slice(-half);
 }
 
-async function fetchPastebinContent(input) {
-  const key    = extractPastebinKey(input);
-  const rawUrl = `https://pastebin.com/raw/${key}`;
-  const res    = await axios.get(rawUrl, { timeout: 5000 });
-  return { content: res.data, key };
-}
-
-async function fetchUrlContent(url) {
-  if (url.includes("pastebin.com")) { const { content } = await fetchPastebinContent(url); return content; }
-  if (url.includes("github.com") && url.includes("/blob/"))
-    url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");
-  const res = await axios.get(url, { timeout: 10000 });
-  return typeof res.data === "string" ? res.data : JSON.stringify(res.data, null, 2);
-}
-
-async function uploadToPastebin(fileName, content) {
-  const params = new URLSearchParams();
-  params.append("api_dev_key",           CONFIG.pastebin.key);
-  params.append("api_option",            "paste");
-  params.append("api_paste_code",        content);
-  params.append("api_paste_name",        fileName);
-  params.append("api_paste_format",      "javascript");
-  params.append("api_paste_expire_date", "N");
-  const res = await axios.post("https://pastebin.com/api/api_post.php", params, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" }
-  });
-  return res.data.startsWith("https://") ? res.data.trim() : null;
-}
-
 async function getFileSha(filePath) {
   const fullPath = buildPath(filePath);
   const cacheKey = `sha:${fullPath}`;
@@ -293,12 +267,10 @@ async function getFileSha(filePath) {
     const sha = res.data.sha || null;
     shaCache.set(cacheKey, { sha, ts: Date.now() });
     return sha;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-function invalidateShaCache(filePath) {
+function invalidateSha(filePath) {
   shaCache.delete(`sha:${buildPath(filePath)}`);
 }
 
@@ -331,10 +303,10 @@ async function pushFileToGithub(filePath, content, commitMsg) {
   const body     = { message: commitMsg || `🦔 HedgehogGPT: ${stripPath(filePath)}`, content: encoded, branch: CONFIG.github.branch };
   if (sha) body.sha = sha;
 
-  const res = await axios.put(url, body, { headers: githubHeaders(), timeout: 10000 });
+  const res = await axios.put(url, body, { headers: githubHeaders(), timeout: 15000 });
   if (res.status !== 200 && res.status !== 201) throw new Error(`GitHub returned status ${res.status}`);
 
-  invalidateShaCache(filePath);
+  invalidateSha(filePath);
   logAction("PUSH", stripPath(filePath));
   return res.data;
 }
@@ -345,17 +317,16 @@ async function pushBatch(fileMap, commitPrefix = "🦔 Batch") {
 
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {
     const batch = entries.slice(i, i + BATCH_SIZE);
-    await Promise.allSettled(batch.map(async ([filePath, content]) => {
+    await Promise.allSettled(batch.map(async ([fp, content]) => {
       try {
-        await pushFileToGithub(filePath, content, `${commitPrefix}: ${stripPath(filePath)}`);
-        results.ok.push(filePath);
+        await pushFileToGithub(fp, content, `${commitPrefix}: ${stripPath(fp)}`);
+        results.ok.push(fp);
       } catch (e) {
-        results.fail.push(filePath);
-        console.error("[batch]", filePath, e.message);
+        results.fail.push(fp);
+        console.error("[batch]", fp, e.message);
       }
     }));
   }
-
   return results;
 }
 
@@ -363,13 +334,14 @@ async function deleteFileOnGithub(filePath) {
   const fullPath = buildPath(filePath);
   const sha      = await getFileSha(filePath);
   if (!sha) throw new Error(`"${stripPath(filePath)}" not found`);
+
   const url = `https://api.github.com/repos/${CONFIG.github.username}/${CONFIG.github.repo}/contents/${encodePath(fullPath)}`;
   await axios.delete(url, {
     headers: githubHeaders(),
     data:    { message: `🗑️ Delete: ${stripPath(filePath)}`, sha, branch: CONFIG.github.branch },
     timeout: 5000
   });
-  invalidateShaCache(filePath);
+  invalidateSha(filePath);
   logAction("DELETE", stripPath(filePath));
 }
 
@@ -391,22 +363,79 @@ async function getRepoInfo() {
 }
 
 async function setRepoVisibility(makePrivate) {
+  const tok = await checkToken(true);
+  if (!tok.valid) throw new Error(`Invalid token: ${tok.reason}`);
+
   const url = `https://api.github.com/repos/${CONFIG.github.username}/${CONFIG.github.repo}`;
-  const res = await axios.patch(url, { private: makePrivate }, { headers: githubHeaders(), timeout: 5000 });
-  repoInfoCache = res.data;
-  repoInfoTs    = Date.now();
-  logAction("VISIBILITY", makePrivate ? "private" : "public");
-  return res.data;
+
+  try {
+    const res = await axios.patch(
+      url,
+      { private: makePrivate, visibility: makePrivate ? "private" : "public" },
+      {
+        headers: {
+          ...githubHeaders(),
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28"
+        },
+        timeout: 10000
+      }
+    );
+    repoInfoCache = res.data;
+    repoInfoTs    = Date.now();
+    logAction("VISIBILITY", makePrivate ? "private" : "public");
+    return res.data;
+  } catch (err) {
+    const status  = err.response?.status;
+    const message = err.response?.data?.message || err.message;
+
+    if (status === 422) {
+      throw new Error(
+        `Cannot change visibility.\nPossible reasons:\n` +
+        `• Token missing "delete_repo" scope\n` +
+        `• Repo belongs to an org (needs org admin)\n` +
+        `• Free plan limits private repos\n` +
+        `GitHub: ${message}`
+      );
+    }
+    if (status === 403) throw new Error(`Forbidden. Token lacks permission.\nGitHub: ${message}`);
+    if (status === 404) throw new Error(`Repo not found or token has no access.\nGitHub: ${message}`);
+    throw new Error(`GitHub ${status}: ${message}`);
+  }
 }
 
 async function searchInRepo(term) {
-  const url = `https://api.github.com/search/code?q=${encodeURIComponent(term)}+repo:${CONFIG.github.username}/${CONFIG.github.repo}+path:${BASE_PATH}`;
   try {
+    const url = `https://api.github.com/search/code?q=${encodeURIComponent(term)}+repo:${CONFIG.github.username}/${CONFIG.github.repo}+path:${BASE_PATH}`;
     const res = await axios.get(url, { headers: githubHeaders(), timeout: 8000 });
     return res.data.items || [];
-  } catch {
-    return [];
+  } catch { return []; }
+}
+
+async function uploadToPastebin(fileName, content) {
+  const params = new URLSearchParams();
+  params.append("api_dev_key",           CONFIG.pastebin.key);
+  params.append("api_option",            "paste");
+  params.append("api_paste_code",        content);
+  params.append("api_paste_name",        fileName);
+  params.append("api_paste_format",      "javascript");
+  params.append("api_paste_expire_date", "N");
+  const res = await axios.post("https://pastebin.com/api/api_post.php", params, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" }
+  });
+  return res.data.startsWith("https://") ? res.data.trim() : null;
+}
+
+async function fetchUrlContent(url) {
+  if (url.includes("pastebin.com")) {
+    const key = url.includes("pastebin.com/") ? url.split("/").pop().split("?")[0].trim() : url.trim();
+    const res = await axios.get(`https://pastebin.com/raw/${key}`, { timeout: 5000 });
+    return res.data;
   }
+  if (url.includes("github.com") && url.includes("/blob/"))
+    url = url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");
+  const res = await axios.get(url, { timeout: 10000 });
+  return typeof res.data === "string" ? res.data : JSON.stringify(res.data, null, 2);
 }
 
 async function askHedgehog(history, userMessage, retry = 0) {
@@ -430,7 +459,7 @@ async function askHedgehog(history, userMessage, retry = 0) {
     return reply;
   } catch (err) {
     if (err.response?.status === 429 && retry < 2) return askHedgehog(history, userMessage, retry + 1);
-    if (err.code === "ECONNABORTED" || err.message.includes("timeout")) throw new Error("Mistral timeout - file too large.");
+    if (err.code === "ECONNABORTED" || err.message.includes("timeout")) throw new Error("Mistral timeout.");
     throw new Error(`Mistral: ${err.response?.data?.error?.message || err.message}`);
   }
 }
@@ -472,20 +501,13 @@ async function generateImage(action, details = "") {
       return imgPath;
     }
     return null;
-  } catch (err) {
-    console.error("[image]", err.message);
-    return null;
-  }
-}
-
-async function generateCustomImage(userPrompt) {
-  return generateImage("Custom", userPrompt.slice(0, 50));
+  } catch { return null; }
 }
 
 async function createTrapPastebin(fileName) {
   const msgs = [
     "🦔 HEDGEHOG GPT\n\nProtected code.\n⚠️ File locked.",
-    "🔐 RESTRICTED ACCESS\n\nAutomated decoy.\nCode secured on GitHub.",
+    "🔐 RESTRICTED ACCESS\n\nDecoy link.\nReal code on GitHub.",
     "🛡️ HEDGEHOG GUARD\n\nTrap link.\nProperty of Ismael03-Dev.",
     "⚠️ DECOY DETECTED\n\nFake link!\nReal code on GitHub."
   ];
@@ -589,7 +611,6 @@ async function sendWithImage(message, text, imagePath) {
 
 async function withLoading(message, api, loadingText, actionFn) {
   let msgID = null;
-
   try {
     const sent = await new Promise((res, rej) =>
       message.reply(UI.loading(loadingText), (err, info) => err ? rej(err) : res(info))
@@ -615,7 +636,6 @@ async function withLoading(message, api, loadingText, actionFn) {
 
 async function withLoadingAndImage(message, api, loadingText, actionFn, imageAction) {
   let msgID = null;
-
   try {
     const sent = await new Promise((res, rej) =>
       message.reply(UI.loading(loadingText), (err, info) => err ? rej(err) : res(info))
@@ -627,9 +647,9 @@ async function withLoadingAndImage(message, api, loadingText, actionFn, imageAct
     actionFn(),
     imageAction ? generateImage(imageAction) : Promise.resolve(null)
   ]).then(([r, img]) => [
-    r.status === "fulfilled" ? r.value : null,
+    r.status === "fulfilled" ? r.value : (() => { throw new Error(r.reason?.message || "Error"); })(),
     img.status === "fulfilled" ? img.value : null
-  ]);
+  ]).catch(err => { throw err; });
 
   const text = typeof result === "string" ? UI.success(result) : result || UI.success("Done");
 
@@ -645,12 +665,12 @@ async function withLoadingAndImage(message, api, loadingText, actionFn, imageAct
 module.exports = {
   config: {
     name:             "commit",
-    version:          "4.0.0",
+    version:          "5.0.0",
     author:           "Ismael03-Dev",
     countDown:        5,
     role:             2,
     category:         "admin",
-    shortDescription: { en: "HedgehogGPT v4 — Batch push + SHA cache + GitHub search" }
+    shortDescription: { en: "HedgehogGPT v5 — Fixed repo visibility + SHA cache + Batch push" }
   },
 
   hedgehogHistory: {},
@@ -707,7 +727,7 @@ module.exports = {
       const localPath = path.join(CMD_PATH, stripPath(action.filePath));
       if (fs.existsSync(localPath)) fs.writeFileSync(localPath, action.newCode, "utf8");
 
-      return `${stripPath(action.filePath)} improved + committed ✅\n${d.summary}\n🔗 github.com/${CONFIG.github.username}/${CONFIG.github.repo}`;
+      return `${stripPath(action.filePath)} improved + committed\n${d.summary}\n🔗 github.com/${CONFIG.github.username}/${CONFIG.github.repo}`;
     }, "Improvement Applied");
   },
 
@@ -722,13 +742,15 @@ module.exports = {
     const history = this.getHistory(uid);
 
     const spamCheck = checkSpam(uid);
-    if (spamCheck.blocked) return message.reply(UI.warn(`🛡️ Anti-spam: ${spamCheck.reason}`));
+    if (spamCheck.blocked) return message.reply(UI.warn(`Anti-spam: ${spamCheck.reason}`));
 
     if (!query || query.toLowerCase() === "help") {
       return message.reply(UI.info(
-        `🦔 HEDGEHOG GPT v4.0\n━━━━━━━━━━━━━━━━━━\n` +
-        `token / config / repo\n` +
-        `repo public / repo private\n` +
+        `🦔 HEDGEHOG GPT v5.0\n━━━━━━━━━━━━━━━━━━\n` +
+        `token / config\n` +
+        `repo → Repo info\n` +
+        `repo public → Make public\n` +
+        `repo private → Make private\n` +
         `repos / repos add / repos switch / repos remove\n` +
         `live on / live off\n` +
         `list / show <file>\n` +
@@ -761,9 +783,17 @@ module.exports = {
     if (query.toLowerCase() === "token") {
       await withLoading(message, api, "Checking token...", async () => {
         const tok = await checkToken(true);
-        return tok.valid
-          ? `Token valid ✅\n👤 ${tok.user}\n📦 ${CONFIG.github.repo}\n🔑 Scopes: ${tok.scopes || "N/A"}`
-          : `Token invalid ❌\n${tok.reason}`;
+        if (tok.valid) {
+          return (
+            `Token valid\n` +
+            `👤 User: ${tok.user}\n` +
+            `📦 Repo: ${CONFIG.github.repo}\n` +
+            `🔑 Scopes: ${tok.scopes || "N/A"}\n` +
+            `✏️ Repo write: ${tok.hasRepo ? "Yes" : "No"}\n` +
+            `🗑️ Delete repo scope: ${tok.hasDeleteRepo ? "Yes (visibility OK)" : "No (cannot change visibility)"}`
+          );
+        }
+        return `Token invalid\n${tok.reason}`;
       });
       return;
     }
@@ -773,8 +803,8 @@ module.exports = {
         await loadConfig();
         const tok = await checkToken(true);
         return tok.valid
-          ? `Config reloaded ✅\n👤 ${tok.user}\n📦 ${CONFIG.github.repo}`
-          : `Config reloaded but token invalid ❌\n${tok.reason}`;
+          ? `Config reloaded\n👤 ${tok.user}\n📦 ${CONFIG.github.repo}`
+          : `Config reloaded but token invalid\n${tok.reason}`;
       });
       return;
     }
@@ -783,31 +813,35 @@ module.exports = {
       await withLoading(message, api, "Fetching repo info...", async () => {
         const r   = await getRepoInfo();
         const tok = await checkToken();
-        return `📦 ${r.full_name}\n🌿 ${CONFIG.github.branch}\n🔒 ${r.private ? "Private 🔒" : "Public 🌐"}\n⭐ ${r.stargazers_count} | 🍴 ${r.forks_count}\n🔑 Token: ${tok.valid ? "✅ " + tok.user : "❌ " + tok.reason}\n🔗 ${r.html_url}`;
+        return (
+          `📦 ${r.full_name}\n` +
+          `🌿 Branch: ${CONFIG.github.branch}\n` +
+          `🔒 Visibility: ${r.private ? "Private" : "Public"}\n` +
+          `⭐ ${r.stargazers_count} | 🍴 ${r.forks_count}\n` +
+          `📝 ${r.description || "No description"}\n` +
+          `🔑 Token: ${tok.valid ? "Valid — " + tok.user : "Invalid — " + tok.reason}\n` +
+          `🔗 ${r.html_url}`
+        );
       });
       return;
     }
 
     if (query.toLowerCase() === "repo private") {
       await withLoading(message, api, "Setting repo to private...", async () => {
-        const tok = await checkToken();
-        if (!tok.valid) throw new Error(`Invalid token: ${tok.reason}`);
         const before = await getRepoInfo();
-        if (before.private) throw new Error("Repo is already private.");
+        if (before.private) return `Repo is already private.`;
         const after = await setRepoVisibility(true);
-        return `Repo private 🔒 ✅\n📦 ${after.full_name}\n🔗 ${after.html_url}`;
+        return `Repo set to private\n📦 ${after.full_name}\n🔗 ${after.html_url}`;
       });
       return;
     }
 
     if (query.toLowerCase() === "repo public") {
       await withLoading(message, api, "Setting repo to public...", async () => {
-        const tok = await checkToken();
-        if (!tok.valid) throw new Error(`Invalid token: ${tok.reason}`);
         const before = await getRepoInfo();
-        if (!before.private) throw new Error("Repo is already public.");
+        if (!before.private) return `Repo is already public.`;
         const after = await setRepoVisibility(false);
-        return `Repo public 🌐 ✅\n📦 ${after.full_name}\n🔗 ${after.html_url}`;
+        return `Repo set to public\n📦 ${after.full_name}\n🔗 ${after.html_url}`;
       });
       return;
     }
@@ -830,7 +864,7 @@ module.exports = {
         const repos = loadRepos();
         repos.list[repo] = { username, repo, branch: "main" };
         saveRepos(repos);
-        return `Repo ${username}/${repo} added ✅`;
+        return `Repo ${username}/${repo} added`;
       });
       return;
     }
@@ -849,7 +883,7 @@ module.exports = {
         tokenCache                 = null;
         shaCache.clear();
         saveRepos(repos);
-        return `Switched to ${name} ✅\n📦 ${CONFIG.github.username}/${CONFIG.github.repo}`;
+        return `Switched to ${name}\n📦 ${CONFIG.github.username}/${CONFIG.github.repo}`;
       });
       return;
     }
@@ -863,14 +897,14 @@ module.exports = {
         if (name === repos.current) throw new Error("Cannot remove current repo. Switch first.");
         delete repos.list[name];
         saveRepos(repos);
-        return `Repo ${name} removed ✅`;
+        return `Repo ${name} removed`;
       });
       return;
     }
 
     if (query.toLowerCase() === "live on") {
       liveMode = true;
-      return message.reply(UI.success("Live mode ON ⚡\nNew files will be auto-fixed on save."));
+      return message.reply(UI.success("Live mode ON\nNew files will be auto-fixed on save."));
     }
 
     if (query.toLowerCase() === "live off") {
@@ -882,17 +916,25 @@ module.exports = {
       await withLoading(message, api, `Listing files in ${BASE_PATH}...`, async () => {
         const files = await getRepoFiles();
         if (!files.length) return `No files in ${BASE_PATH}.`;
-        return files.map(f => `📄 ${f.name} (${(f.size / 1024).toFixed(1)} KB)`).join("\n");
+        return `Files (${files.length})\n` + files.map(f => `📄 ${f.name} (${(f.size / 1024).toFixed(1)} KB)`).join("\n");
       });
       return;
     }
 
     if (query.toLowerCase() === "stats") {
       await withLoading(message, api, "Fetching stats...", async () => {
-        const backups      = loadBackups();
-        const totalBackups = Object.values(backups).reduce((s, b) => s + b.length, 0);
-        const logs         = fs.existsSync(LOG_PATH) ? fs.readFileSync(LOG_PATH, "utf8").split("\n").filter(Boolean).length : 0;
-        return `💬 Messages: ${history.length}\n📁 Backed up files: ${Object.keys(backups).length}\n💾 Total backups: ${totalBackups}\n📋 Log entries: ${logs}\n📦 Repo: ${CONFIG.github.repo}\n📂 Scope: ${BASE_PATH}\n⚡ Live mode: ${liveMode ? "ON" : "OFF"}\n🦔 Version: 4.0.0`;
+        const backups = loadBackups();
+        const logs    = fs.existsSync(LOG_PATH) ? fs.readFileSync(LOG_PATH, "utf8").split("\n").filter(Boolean).length : 0;
+        return (
+          `Messages: ${history.length}\n` +
+          `Backed up files: ${Object.keys(backups).length}\n` +
+          `Total backups: ${Object.values(backups).reduce((s, b) => s + b.length, 0)}\n` +
+          `Log entries: ${logs}\n` +
+          `Repo: ${CONFIG.github.repo}\n` +
+          `Scope: ${BASE_PATH}\n` +
+          `Live mode: ${liveMode ? "ON" : "OFF"}\n` +
+          `Version: 5.0.0`
+        );
       });
       return;
     }
@@ -904,7 +946,13 @@ module.exports = {
         const lastLogs = fs.existsSync(LOG_PATH)
           ? fs.readFileSync(LOG_PATH, "utf8").split("\n").filter(Boolean).slice(-3).join("\n")
           : "No logs";
-        return `📁 Files: ${files.length}\n💾 Backups: ${Object.keys(backups).length} files\n⚡ Live: ${liveMode ? "ON" : "OFF"}\n📦 Repo: ${CONFIG.github.username}/${CONFIG.github.repo}\n🦔 v4.0.0\n\nRecent:\n${lastLogs}`;
+        return (
+          `Files: ${files.length}\n` +
+          `Backups: ${Object.keys(backups).length} files\n` +
+          `Live: ${liveMode ? "ON" : "OFF"}\n` +
+          `Repo: ${CONFIG.github.username}/${CONFIG.github.repo}\n` +
+          `v5.0.0\n\nRecent:\n${lastLogs}`
+        );
       });
       return;
     }
@@ -914,34 +962,40 @@ module.exports = {
         const backups = loadBackups();
         const files   = Object.keys(backups);
         if (!files.length) return "No backups found.";
-        return files.map(f => `📄 ${f}: ${backups[f].length} version(s) | Last: ${new Date(backups[f][0].date).toLocaleDateString()}`).join("\n");
+        return `Backups (${files.length})\n` + files.map(f => {
+          const last = new Date(backups[f][0].date).toLocaleDateString();
+          return `📄 ${stripPath(f)}: ${backups[f].length} version(s) | Last: ${last}`;
+        }).join("\n");
       });
       return;
     }
 
     const noteMatch = query.match(/^note\s+(.+)$/i);
     if (noteMatch) {
-      const noteText = noteMatch[1].trim();
-      saveNote(uid, noteText);
-      return message.reply(UI.success(`Note saved: ${noteText.slice(0, 60)}`));
+      saveNote(uid, noteMatch[1].trim());
+      return message.reply(UI.success(`Note saved: ${noteMatch[1].trim().slice(0, 60)}`));
     }
 
     if (query.toLowerCase() === "notes") {
-      const notes = loadNotes()[uid] || [];
+      const notes = loadNotes(uid);
       if (!notes.length) return message.reply(UI.warn("No notes found."));
-      return message.reply(UI.info(`Your notes (${notes.length})\n` + notes.slice(0, 10).map((n, i) => `${i + 1}. ${n.text.slice(0, 60)}`).join("\n")));
+      return message.reply(UI.info(
+        `Your notes (${notes.length})\n` +
+        notes.slice(0, 10).map((n, i) => `${i + 1}. ${n.text.slice(0, 60)}`).join("\n")
+      ));
     }
 
     const compareMatch = query.match(/^compare\s+(\S+)\s+(\S+)$/i);
     if (compareMatch) {
-      const file1 = compareMatch[1].trim();
-      const file2 = compareMatch[2].trim();
+      const [, file1, file2] = compareMatch;
       await withLoading(message, api, `Comparing ${file1} vs ${file2}...`, async () => {
         const [code1, code2] = await Promise.all([getFileContent(file1), getFileContent(file2)]);
-        const d1 = detectSyntaxErrors(code1);
-        const d2 = detectSyntaxErrors(code2);
+        const [e1, e2]       = [detectSyntaxErrors(code1), detectSyntaxErrors(code2)];
         const reply = await askHedgehog(history,
-          `Compare these two files:\n\n${file1} (${code1.split("\n").length} lines, ${d1.length} errors):\n${smartTruncate(code1, 2000)}\n\n${file2} (${code2.split("\n").length} lines, ${d2.length} errors):\n${smartTruncate(code2, 2000)}\n\nCompare: quality, structure, performance, which is better and why.`
+          `Compare these two files:\n\n` +
+          `${file1} (${code1.split("\n").length} lines, ${e1.length} errors):\n${smartTruncate(code1, 2000)}\n\n` +
+          `${file2} (${code2.split("\n").length} lines, ${e2.length} errors):\n${smartTruncate(code2, 2000)}\n\n` +
+          `Compare quality, structure, performance, which is better and why.`
         );
         this.saveHistory();
         return reply;
@@ -955,7 +1009,7 @@ module.exports = {
       await withLoading(message, api, `Searching for "${term}"...`, async () => {
         const items = await searchInRepo(term);
         if (!items.length) return `No results for "${term}".`;
-        return `Results (${items.length})\n` + items.slice(0, 10).map(i => `📄 ${i.name} (${i.path})`).join("\n");
+        return `Results (${items.length})\n` + items.slice(0, 10).map(i => `📄 ${i.name} — ${i.path}`).join("\n");
       });
       return;
     }
@@ -983,40 +1037,42 @@ module.exports = {
         const errs  = detectSyntaxErrors(content);
         const lines = content.split("\n").length;
         const name  = url.split("/").pop()?.split("?")[0] || "unknown.js";
-        return `Link scan complete\n📄 ${name}\n📝 ${lines} lines | ${(content.length / 1024).toFixed(1)} KB\n${errs.length > 0 ? `❌ ${errs.length} error(s):\n${errs.join("\n")}` : "✅ No errors detected."}`;
+        return (
+          `Link scan complete\n📄 ${name}\n` +
+          `📝 ${lines} lines | ${(content.length / 1024).toFixed(1)} KB\n` +
+          `${errs.length > 0 ? `${errs.length} error(s):\n${errs.join("\n")}` : "No errors detected."}`
+        );
       }, "Link Scanned");
       return;
     }
 
     if (query.toLowerCase() === "scan") {
       await withLoadingAndImage(message, api, `Scanning all files in ${BASE_PATH}...`, async () => {
-        const files = await getRepoFiles();
+        const files   = await getRepoFiles();
         const fileMap = {};
         let clean = 0, fail = 0;
 
-        const results = await Promise.allSettled(
-          files.map(async file => {
-            const code = await getFileContent(file.name);
-            const errs = detectSyntaxErrors(code);
-            return { file, code, errs };
-          })
-        );
+        const fetched = await Promise.allSettled(files.map(async f => ({
+          name: f.name,
+          code: await getFileContent(f.name)
+        })));
 
-        for (const r of results) {
+        for (const r of fetched) {
           if (r.status !== "fulfilled") { fail++; continue; }
-          const { file, code, errs } = r.value;
+          const { name, code } = r.value;
+          const errs           = detectSyntaxErrors(code);
           if (errs.length === 0) { clean++; continue; }
-          if (code.length > MAX_FILE) continue;
+          if (code.length > MAX_FILE) { fail++; continue; }
           try {
             const newCode = await askHedgehog([], `Fix:\n${errs.join("\n")}\n\nReturn ONLY the corrected code, no backticks:\n\n${smartTruncate(code)}`);
-            fileMap[file.name] = newCode;
-            saveBackup(file.name, code);
+            fileMap[name] = newCode;
+            saveBackup(name, code);
           } catch { fail++; }
         }
 
         const batchRes = await pushBatch(fileMap, "🦔 Scan");
         this.saveHistory();
-        return `✅ ${batchRes.ok.length} fixed, ${clean} clean` + (fail || batchRes.fail.length ? `, ${fail + batchRes.fail.length} failed` : "");
+        return `${batchRes.ok.length} fixed, ${clean} clean` + (fail + batchRes.fail.length ? `, ${fail + batchRes.fail.length} failed` : "");
       }, "Scan Complete");
       return;
     }
@@ -1025,14 +1081,14 @@ module.exports = {
       await withLoadingAndImage(message, api, "Quick fixing last file...", async () => {
         const files = await getRepoFiles();
         if (!files.length) throw new Error("No files found.");
-        const last  = files[files.length - 1];
-        const code  = await getFileContent(last.name);
-        const errs  = detectSyntaxErrors(code);
+        const last    = files[files.length - 1];
+        const code    = await getFileContent(last.name);
+        const errs    = detectSyntaxErrors(code);
         if (!errs.length) throw new Error(`${last.name} is already clean.`);
         const newCode = await askHedgehog(history, `Fix:\n${errs.join("\n")}\n\nReturn ONLY code:\n\n${smartTruncate(code)}`);
         saveBackup(last.name, code);
         await pushFileToGithub(last.name, newCode, `🦔 QuickFix: ${last.name}`);
-        return `${last.name} fixed + committed ✅`;
+        return `${last.name} fixed + committed`;
       }, "Quick Fix");
       return;
     }
@@ -1055,18 +1111,17 @@ module.exports = {
           }
         }
         const res = await pushBatch(fileMap, "🦔 PushAll-AI");
-        return `✅ ${res.ok.length} pushed` + (res.fail.length ? `, ${res.fail.length} failed` : "");
+        return `${res.ok.length} pushed` + (res.fail.length ? `, ${res.fail.length} failed` : "");
       }, "Pushall AI");
       return;
     }
 
     const drawMatch = query.match(/^draw\s+(.+)$/i);
     if (drawMatch) {
-      const userPrompt = drawMatch[1].trim();
-      await message.reply(UI.loading(`Drawing...`));
-      const imagePath = await generateCustomImage(userPrompt);
+      await message.reply(UI.loading("Drawing..."));
+      const imagePath = await generateImage("Custom", drawMatch[1].trim().slice(0, 50));
       return imagePath
-        ? sendWithImage(message, UI.success(`Draw: ${userPrompt.slice(0, 80)}`), imagePath)
+        ? sendWithImage(message, UI.success(`Draw: ${drawMatch[1].trim().slice(0, 80)}`), imagePath)
         : message.reply(UI.warn("Draw failed."));
     }
 
@@ -1081,9 +1136,7 @@ module.exports = {
           { body: UI.success(`${stripPath(filePath)} | ${code.split("\n").length} lines`), attachment: fs.createReadStream(imagePath) },
           () => setTimeout(() => { try { fs.unlinkSync(imagePath); } catch {} }, 5000)
         );
-      } catch (err) {
-        return message.reply(UI.error(err.message));
-      }
+      } catch (err) { message.reply(UI.error(err.message)); }
       return;
     }
 
@@ -1096,8 +1149,12 @@ module.exports = {
         const lines     = code.split("\n").length;
         const functions = (code.match(/function\s+\w+|async\s+function\s+\w+|=>/g) || []).length;
         const requires  = (code.match(/require\(/g) || []).length;
-        return `📄 ${stripPath(filePath)}\n📝 ${lines} lines | ${(code.length / 1024).toFixed(1)} KB\n⚙️ ${functions} functions | 📦 ${requires} modules\n` +
-          (errs.length === 0 ? `✅ No errors detected.` : `❌ ${errs.length} error(s):\n${errs.join("\n")}`);
+        return (
+          `📄 ${stripPath(filePath)}\n` +
+          `📝 ${lines} lines | ${(code.length / 1024).toFixed(1)} KB\n` +
+          `⚙️ ${functions} functions | 📦 ${requires} modules\n` +
+          (errs.length === 0 ? `No errors detected.` : `${errs.length} error(s):\n${errs.join("\n")}`)
+        );
       });
       return;
     }
@@ -1130,7 +1187,7 @@ module.exports = {
 
           const res = await pushBatch(fileMap, "🦔 Fix");
           this.saveHistory();
-          return `✅ ${res.ok.length} fixed` + (fail + res.fail.length ? `, ${fail + res.fail.length} failed` : "");
+          return `${res.ok.length} fixed` + (fail + res.fail.length ? `, ${fail + res.fail.length} failed` : "");
         }, "Files Fixed");
         return;
       }
@@ -1145,7 +1202,7 @@ module.exports = {
         await pushFileToGithub(target, newCode, `🦔 Fix: ${stripPath(target)}`);
         const d = diffFiles(code, newCode);
         this.saveHistory();
-        return `${stripPath(target)} fixed + committed ✅\n${d.summary}`;
+        return `${stripPath(target)} fixed + committed\n${d.summary}`;
       }, "File Fixed");
       return;
     }
@@ -1154,13 +1211,13 @@ module.exports = {
     if (improveMatch) {
       const filePath = improveMatch[1].trim();
       await withLoadingAndImage(message, api, `Improving ${filePath}...`, async () => {
-        const code    = await getFileContent(filePath);
+        const code   = await getFileContent(filePath);
         if (code.length > MAX_FILE) throw new Error("File too large.");
-        const errs    = detectSyntaxErrors(code);
-        const errSec  = errs.length > 0 ? `\nErrors: ${errs.join(", ")}` : "";
+        const errs   = detectSyntaxErrors(code);
+        const errSec = errs.length > 0 ? `\nErrors: ${errs.join(", ")}` : "";
 
         const [analysis, newCode] = await Promise.all([
-          askHedgehog(history, `Here is the REAL code of ${stripPath(filePath)}. Propose improvements:\n\`\`\`\n${smartTruncate(code)}\n\`\`\`\n${errSec}\nEnd with "React to apply changes."`),
+          askHedgehog(history, `Here is the REAL code of ${stripPath(filePath)}. Propose improvements:\n${smartTruncate(code)}\n${errSec}\nEnd with "React to apply changes."`),
           askHedgehog([], `Apply ALL improvements. Return ONLY the final code, no backticks:\n\n${code}`)
         ]);
 
@@ -1180,7 +1237,7 @@ module.exports = {
         const errSec = errs.length > 0 ? `\nErrors: ${errs.join(", ")}` : "";
 
         const [reply, newCode] = await Promise.all([
-          askHedgehog(history, `Code review of ${stripPath(filePath)}:\n\`\`\`\n${smartTruncate(code)}\n\`\`\`\n${errSec}\n1. Positives 2. Bugs 3. Performance 4. Improvements 5. Score/10\nEnd with "React to apply changes."`),
+          askHedgehog(history, `Code review of ${stripPath(filePath)}:\n${smartTruncate(code)}\n${errSec}\n1. Positives 2. Bugs 3. Performance 4. Improvements 5. Score/10\nEnd with "React to apply changes."`),
           askHedgehog([], `Apply review improvements. Return ONLY the final code, no backticks:\n\n${code}`)
         ]);
 
@@ -1200,7 +1257,7 @@ module.exports = {
           const samples  = files.slice(0, 5);
           const contents = await Promise.all(samples.map(async f => {
             const code = await getFileContent(f.name);
-            return `${f.name}:\n\`\`\`\n${smartTruncate(code, 1000)}\n\`\`\``;
+            return `${f.name}:\n${smartTruncate(code, 1000)}`;
           }));
           const reply = await askHedgehog(history, `Global analysis of ${BASE_PATH} (${files.length} files, ${samples.length} samples):\n\n${contents.join("\n\n")}`);
           this.saveHistory();
@@ -1214,7 +1271,7 @@ module.exports = {
         const errs  = detectSyntaxErrors(code);
 
         const [reply, newCode] = await Promise.all([
-          askHedgehog(history, `Analyze ${stripPath(target)}:\n\`\`\`\n${smartTruncate(code)}\n\`\`\`\n${errs.length ? `Errors: ${errs.join(", ")}` : ""}\nEnd with "React to apply changes."`),
+          askHedgehog(history, `Analyze ${stripPath(target)}:\n${smartTruncate(code)}\n${errs.length ? `Errors: ${errs.join(", ")}` : ""}\nEnd with "React to apply changes."`),
           askHedgehog([], `Apply improvements. Return ONLY the final code, no backticks:\n\n${code}`)
         ]);
 
@@ -1234,7 +1291,7 @@ module.exports = {
         const newCode = await askHedgehog(history, `Add JSDoc to this code. Return ONLY the documented code, no backticks:\n\n${smartTruncate(code)}`);
         await pushFileToGithub(filePath, newCode, `🦔 Doc: ${stripPath(filePath)}`);
         this.saveHistory();
-        return `${stripPath(filePath)} documented + committed ✅`;
+        return `${stripPath(filePath)} documented + committed`;
       }, "Documentation Added");
       return;
     }
@@ -1248,7 +1305,7 @@ module.exports = {
         const testCode  = await askHedgehog(history, `Generate unit tests. Return ONLY the test code, no backticks:\n\n${smartTruncate(code)}`);
         await pushFileToGithub(testPath, testCode, `🦔 Test: ${stripPath(filePath)}`);
         this.saveHistory();
-        return `${testPath} generated + committed ✅`;
+        return `${testPath} generated + committed`;
       }, "Tests Generated");
       return;
     }
@@ -1263,7 +1320,7 @@ module.exports = {
         await pushFileToGithub(filePath, newCode, `🦔 Simplify: ${stripPath(filePath)}`);
         const d = diffFiles(code, newCode);
         this.saveHistory();
-        return `${stripPath(filePath)} simplified + committed ✅\n${d.summary}`;
+        return `${stripPath(filePath)} simplified + committed\n${d.summary}`;
       }, "Code Simplified");
       return;
     }
@@ -1273,7 +1330,7 @@ module.exports = {
       const filePath = explainMatch[1].trim();
       await withLoading(message, api, `Explaining ${filePath}...`, async () => {
         const code  = await getFileContent(filePath);
-        const reply = await askHedgehog(history, `Explain this GoatBot file:\n\`\`\`\n${smartTruncate(code)}\n\`\`\`\n1. Role 2. Sections 3. Key functions 4. Important points`);
+        const reply = await askHedgehog(history, `Explain this GoatBot file:\n${smartTruncate(code)}\n1. Role 2. Sections 3. Key functions 4. Important points`);
         this.saveHistory();
         return reply;
       });
@@ -1287,7 +1344,7 @@ module.exports = {
         const newCode = await askHedgehog(history, `Create a complete GoatBot file: ${description}\n\nReturn ONLY the code, no backticks.`);
         await pushFileToGithub(fileName, newCode, `🦔 Create: ${fileName}`);
         this.saveHistory();
-        return `${fileName} created + committed ✅`;
+        return `${fileName} created + committed`;
       }, "File Created");
       return;
     }
@@ -1298,7 +1355,10 @@ module.exports = {
       await withLoading(message, api, `Fetching history for ${filePath}...`, async () => {
         const commits = await getCommitHistory(filePath);
         if (!commits.length) return "No commits found.";
-        return commits.map((c, i) => `#${i} 📌 ${c.commit.message.slice(0, 45)}\n   🕐 ${new Date(c.commit.author.date).toLocaleString("en-US")}`).join("\n\n");
+        return commits.map((c, i) => {
+          const date = new Date(c.commit.author.date).toLocaleString("en-US");
+          return `#${i} 📌 ${c.commit.message.slice(0, 45)}\n   🕐 ${date}`;
+        }).join("\n\n");
       });
       return;
     }
@@ -1311,7 +1371,7 @@ module.exports = {
         saveBackup(oldPath, content);
         await pushFileToGithub(newPath, content, `🦔 Rename: ${oldPath} → ${newPath}`);
         await deleteFileOnGithub(oldPath);
-        return `${oldPath} → ${newPath} ✅`;
+        return `${oldPath} → ${newPath}`;
       });
       return;
     }
@@ -1324,7 +1384,7 @@ module.exports = {
         const localPath  = path.join(CMD_PATH, stripPath(filePath));
         if (!fs.existsSync(localPath)) throw new Error("No local version found.");
         const localCode = fs.readFileSync(localPath, "utf8");
-        const d = diffFiles(localCode, remoteCode);
+        const d         = diffFiles(localCode, remoteCode);
         return `${stripPath(filePath)}\n${d.summary}`;
       });
       return;
@@ -1339,7 +1399,7 @@ module.exports = {
         const curCode = await getFileContent(filePath);
         saveBackup(filePath, curCode);
         await pushFileToGithub(filePath, backup.content, `🦔 Rollback: ${stripPath(filePath)}`);
-        return `${stripPath(filePath)} restored ✅\n📅 ${new Date(backup.date).toLocaleString("en-US")}`;
+        return `${stripPath(filePath)} restored\n📅 ${new Date(backup.date).toLocaleString("en-US")}`;
       });
       return;
     }
@@ -1363,7 +1423,7 @@ module.exports = {
 
     if (!sub || sub === "help") {
       return message.reply(UI.info(
-        `COMMIT v4.0 — HELP\n━━━━━━━━━━━━━━━━━━\n` +
+        `COMMIT v5.0 — HELP\n━━━━━━━━━━━━━━━━━━\n` +
         `${p}commit list / remote / info\n` +
         `${p}commit save <name> <code>\n` +
         `${p}commit paste <name> <link> [--push]\n` +
@@ -1393,7 +1453,7 @@ module.exports = {
       if (!fileName || !pasteLink) return message.reply(UI.error(`Usage: ${p}commit paste <name.js> <link>`));
       const finalName = fileName.endsWith(".js") ? fileName : fileName + ".js";
       await withLoading(message, api, "Importing from Pastebin...", async () => {
-        const { content } = await fetchPastebinContent(pasteLink);
+        const content = await fetchUrlContent(pasteLink);
         if (!content?.trim()) throw new Error("Empty or inaccessible.");
         const filePath = path.join(CMD_PATH, finalName);
         ensureDir(CMD_PATH);
@@ -1402,7 +1462,7 @@ module.exports = {
         const fakeUrl = await createTrapPastebin(finalName);
         if (autoPush) {
           await pushFileToGithub(finalName, content, `🦔 Import: ${finalName}`);
-          return `${finalName} imported + committed ✅\n🔗 ${fakeUrl || "blocked"}`;
+          return `${finalName} imported + committed\n🔗 ${fakeUrl || "blocked"}`;
         }
         return `${finalName} imported\n🔗 ${fakeUrl || "blocked"}`;
       });
@@ -1431,7 +1491,7 @@ module.exports = {
       await withLoading(message, api, `Pushing ${fileName}...`, async () => {
         const content = fs.readFileSync(filePath, "utf8");
         await pushFileToGithub(fileName, content, `🦔 Push: ${fileName}`);
-        return `${fileName} pushed ✅`;
+        return `${fileName} pushed`;
       });
       return;
     }
@@ -1444,7 +1504,7 @@ module.exports = {
         const fileMap = {};
         files.forEach(f => { fileMap[f] = fs.readFileSync(path.join(CMD_PATH, f), "utf8"); });
         const res = await pushBatch(fileMap, "🦔 Pushall");
-        return `✅ ${res.ok.length} pushed` + (res.fail.length ? `, ${res.fail.length} failed` : "");
+        return `${res.ok.length} pushed` + (res.fail.length ? `, ${res.fail.length} failed` : "");
       });
       return;
     }
@@ -1455,12 +1515,41 @@ module.exports = {
         if (!files.length) return "GitHub is empty.";
         ensureDir(CMD_PATH);
         await Promise.allSettled(files.map(async file => {
-          const fileRes   = await axios.get(file.download_url, { timeout: 5000 });
+          const res       = await axios.get(file.download_url, { timeout: 5000 });
           const localPath = path.join(CMD_PATH, file.name);
           if (fs.existsSync(localPath)) saveBackup(file.name, fs.readFileSync(localPath, "utf8"));
-          fs.writeFileSync(localPath, fileRes.data, "utf8");
+          fs.writeFileSync(localPath, res.data, "utf8");
         }));
-        return `${files.length} files pulled ✅`;
+        return `${files.length} files pulled`;
+      });
+      return;
+    }
+
+    if (sub === "sync") {
+      await withLoading(message, api, "Syncing...", async () => {
+        const remoteFiles = await getRepoFiles();
+        ensureDir(CMD_PATH);
+        let pull = 0, fail = 0;
+
+        await Promise.allSettled(remoteFiles.map(async file => {
+          try {
+            const res       = await axios.get(file.download_url, { timeout: 5000 });
+            const localPath = path.join(CMD_PATH, file.name);
+            if (fs.existsSync(localPath)) saveBackup(file.name, fs.readFileSync(localPath, "utf8"));
+            fs.writeFileSync(localPath, res.data, "utf8");
+            pull++;
+          } catch { fail++; }
+        }));
+
+        const localFiles = fs.readdirSync(CMD_PATH).filter(f => f.endsWith(".js"));
+        const fileMap    = {};
+        localFiles.forEach(f => { fileMap[f] = fs.readFileSync(path.join(CMD_PATH, f), "utf8"); });
+        const pushRes = await pushBatch(fileMap, "🦔 Sync");
+
+        return (
+          `Pull: ${pull} | Push: ${pushRes.ok.length}` +
+          (fail + pushRes.fail.length ? ` | Failed: ${fail + pushRes.fail.length}` : "")
+        );
       });
       return;
     }
@@ -1469,7 +1558,10 @@ module.exports = {
       ensureDir(CMD_PATH);
       const files = fs.readdirSync(CMD_PATH).filter(f => f.endsWith(".js"));
       if (!files.length) return message.reply(UI.info("No commands found."));
-      return message.reply(UI.info(`Local files (${files.length})\n` + files.map(f => `📄 ${f} (${(fs.statSync(path.join(CMD_PATH, f)).size / 1024).toFixed(1)} KB)`).join("\n")));
+      return message.reply(UI.info(
+        `Local files (${files.length})\n` +
+        files.map(f => `📄 ${f} (${(fs.statSync(path.join(CMD_PATH, f)).size / 1024).toFixed(1)} KB)`).join("\n")
+      ));
     }
 
     if (sub === "remote") {
@@ -1489,10 +1581,12 @@ module.exports = {
         const onlyL  = [...local].filter(f => !remote.has(f));
         const onlyR  = [...remote].filter(f => !local.has(f));
         const both   = [...local].filter(f => remote.has(f));
-        return `📊 Local: ${local.size} | GitHub: ${remote.size}` +
-          (both.length  ? `\n✅ Common: ${both.length}`       : "") +
-          (onlyL.length ? `\n💾 Local only: ${onlyL.length}`  : "") +
-          (onlyR.length ? `\n☁ GitHub only: ${onlyR.length}` : "");
+        return (
+          `Local: ${local.size} | GitHub: ${remote.size}` +
+          (both.length  ? `\nCommon: ${both.length}`       : "") +
+          (onlyL.length ? `\nLocal only: ${onlyL.length}`  : "") +
+          (onlyR.length ? `\nGitHub only: ${onlyR.length}` : "")
+        );
       });
       return;
     }
@@ -1504,7 +1598,7 @@ module.exports = {
         const content = await getFileContent(fileName).catch(() => null);
         if (content) saveBackup(fileName, content);
         await deleteFileOnGithub(fileName);
-        return `${fileName} deleted ✅`;
+        return `${fileName} deleted`;
       });
       return;
     }
@@ -1529,7 +1623,14 @@ module.exports = {
         ensureDir(CMD_PATH);
         const localCount  = fs.readdirSync(CMD_PATH).filter(f => f.endsWith(".js")).length;
         const backupCount = Object.values(loadBackups()).reduce((s, b) => s + b.length, 0);
-        return `👤 ${r.owner.login}\n📦 ${r.name}\n🌿 ${CONFIG.github.branch}\n🔒 ${r.private ? "Private 🔒" : "Public 🌐"}\n📂 Scope: ${BASE_PATH}\n📁 Local: ${localCount} | 💾 Backups: ${backupCount}\n🔑 Token: ${tok.valid ? "✅ " + tok.user : "❌ " + tok.reason}\n🔗 ${r.html_url}`;
+        return (
+          `👤 ${r.owner.login}\n📦 ${r.name}\n🌿 ${CONFIG.github.branch}\n` +
+          `🔒 ${r.private ? "Private" : "Public"}\n📂 ${BASE_PATH}\n` +
+          `📁 Local: ${localCount} | 💾 Backups: ${backupCount}\n` +
+          `🔑 Token: ${tok.valid ? "Valid — " + tok.user : "Invalid — " + tok.reason}\n` +
+          `🗑️ Visibility change: ${tok.hasDeleteRepo ? "Available" : "Needs delete_repo scope"}\n` +
+          `🔗 ${r.html_url}`
+        );
       });
       return;
     }
