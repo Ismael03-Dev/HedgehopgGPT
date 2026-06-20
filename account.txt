@@ -30,21 +30,6 @@
         "storeId": null
     },
     {
-        "name": "fr",
-        "value": "0teHfd7V1ge2PHfEf.AWfMOOhIdmry2DMidhI4E_1x3nVAiU8iO3ydHvaVjQRLUFRycmc.BqNlS-..AAA.0.0.BqNlTS.AWe_8x9clxr27tdWioP9G3IvsaY",
-        "domain": ".facebook.com",
-        "hostOnly": false,
-        "path": "/",
-        "secure": true,
-        "httpOnly": true,
-        "sameSite": "no_restriction",
-        "session": false,
-        "firstPartyDomain": "",
-        "partitionKey": null,
-        "expirationDate": 1789721553.967,
-        "storeId": null
-    },
-    {
         "name": "vpd",
         "value": "v1%3B1039x516x1.3953488372093024",
         "domain": ".facebook.com",
@@ -61,7 +46,7 @@
     },
     {
         "name": "xs",
-        "value": "3%3AipCgUBuZpMawAg%3A2%3A1781945547%3A-1%3A-1",
+        "value": "6%3AlGr3ooNYZUtgDA%3A2%3A1781965087%3A-1%3A-1",
         "domain": ".facebook.com",
         "hostOnly": false,
         "path": "/",
@@ -71,12 +56,12 @@
         "session": false,
         "firstPartyDomain": "",
         "partitionKey": null,
-        "expirationDate": 1813481550.854,
+        "expirationDate": 1813501087.494,
         "storeId": null
     },
     {
         "name": "locale",
-        "value": "fr_FR",
+        "value": "en_US",
         "domain": ".facebook.com",
         "hostOnly": false,
         "path": "/",
@@ -86,7 +71,7 @@
         "session": false,
         "firstPartyDomain": "",
         "partitionKey": null,
-        "expirationDate": 1782550353.967,
+        "expirationDate": 1782569947.109,
         "storeId": null
     },
     {
@@ -105,7 +90,7 @@
     },
     {
         "name": "c_user",
-        "value": "61590798844471",
+        "value": "61590767252071",
         "domain": ".facebook.com",
         "hostOnly": false,
         "path": "/",
@@ -115,12 +100,12 @@
         "session": false,
         "firstPartyDomain": "",
         "partitionKey": null,
-        "expirationDate": 1813481550.854,
+        "expirationDate": 1813501087.494,
         "storeId": null
     },
     {
         "name": "oo",
-        "value": "v1",
+        "value": "v1%7C3%3A1781965089",
         "domain": ".facebook.com",
         "hostOnly": false,
         "path": "/",
@@ -130,7 +115,7 @@
         "session": false,
         "firstPartyDomain": "",
         "partitionKey": null,
-        "expirationDate": 1816505533.993,
+        "expirationDate": 1816525088.368,
         "storeId": null
     },
     {
@@ -145,7 +130,7 @@
         "session": false,
         "firstPartyDomain": "",
         "partitionKey": null,
-        "expirationDate": 1816505553.967,
+        "expirationDate": 1816525147.109,
         "storeId": null
     },
     {
@@ -175,7 +160,7 @@
         "session": false,
         "firstPartyDomain": "",
         "partitionKey": null,
-        "expirationDate": 1816505550.854,
+        "expirationDate": 1816525087.494,
         "storeId": null
     },
     {
