@@ -1,89 +1,88 @@
-const fs = require("fs-extra");
-const path = require("path");
+const fs     = require("fs-extra");
+const path   = require("path");
 const { createCanvas } = require("canvas");
-const axios = require("axios");
+const axios  = require("axios");
 
-const FORMAT_URL = "https://numbers-conversion.vercel.app/api/format";
-const CASH_URL = "https://cash-api-five.vercel.app/api/cash";
+const FORMAT_URL  = "https://numbers-conversion.vercel.app/api/format";
+const CASH_URL    = "https://cash-api-five.vercel.app/api/cash";
 const MISTRAL_API = "https://api.mistral.ai/v1/chat/completions";
 const MISTRAL_KEY = "VCFZLWLWcxk6SIMIZHa0HjGr2rRwrZhN";
 
-const MAX_LIMIT = 10n ** 261n;
-const STATS_FILE = path.join(__dirname, "tictactoe_stats.json");
+const MAX_LIMIT    = 10n ** 261n;
+const STATS_FILE   = path.join(__dirname, "tictactoe_stats.json");
 const HISTORY_FILE = path.join(__dirname, "tictactoe_history.json");
-const STREAK_FILE = path.join(__dirname, "tictactoe_streaks.json");
-const ONLINE_FILE = path.join(__dirname, "tictactoe_online.json");
-const ASSETS_DIR = path.join(__dirname, "tictactoe_assets");
-const BOT_UID = global.botID;
+const STREAK_FILE  = path.join(__dirname, "tictactoe_streaks.json");
+const ONLINE_FILE  = path.join(__dirname, "tictactoe_online.json");
+const ASSETS_DIR   = path.join(__dirname, "tictactoe_assets");
+const BOT_UID  = global.botID;
 const BOT_NAME = "Hedgehog GPT";
 
 const TIERS = [
-  { v: 10n ** 258n, s: "Qiu" }, { v: 10n ** 255n, s: "Qu" }, { v: 10n ** 252n, s: "Tu" },
-  { v: 10n ** 249n, s: "Du" }, { v: 10n ** 246n, s: "Uc" }, { v: 10n ** 243n, s: "DcQ" },
-  { v: 10n ** 240n, s: "NoQ" }, { v: 10n ** 237n, s: "OcQ" }, { v: 10n ** 234n, s: "SpQ" },
-  { v: 10n ** 231n, s: "SxQ" }, { v: 10n ** 228n, s: "QiQ" }, { v: 10n ** 225n, s: "QQ" },
-  { v: 10n ** 222n, s: "TQ" }, { v: 10n ** 219n, s: "DQ" }, { v: 10n ** 216n, s: "UQ" },
-  { v: 10n ** 213n, s: "DcTr" }, { v: 10n ** 210n, s: "NoTr" }, { v: 10n ** 207n, s: "OcTr" },
-  { v: 10n ** 204n, s: "SpTr" }, { v: 10n ** 201n, s: "SxTr" }, { v: 10n ** 198n, s: "QiTr" },
-  { v: 10n ** 195n, s: "QTr" }, { v: 10n ** 192n, s: "TTr" }, { v: 10n ** 189n, s: "DTr" },
-  { v: 10n ** 186n, s: "UTr" }, { v: 10n ** 183n, s: "DcT" }, { v: 10n ** 180n, s: "NoT" },
-  { v: 10n ** 177n, s: "OcT" }, { v: 10n ** 174n, s: "SpT" }, { v: 10n ** 171n, s: "SxT" },
-  { v: 10n ** 168n, s: "QiT" }, { v: 10n ** 165n, s: "QT" }, { v: 10n ** 162n, s: "TT" },
-  { v: 10n ** 159n, s: "DT" }, { v: 10n ** 156n, s: "UT" }, { v: 10n ** 153n, s: "DcV" },
-  { v: 10n ** 150n, s: "NoV" }, { v: 10n ** 147n, s: "OcV" }, { v: 10n ** 144n, s: "SpV" },
-  { v: 10n ** 141n, s: "SxV" }, { v: 10n ** 138n, s: "QiV" }, { v: 10n ** 135n, s: "QV" },
-  { v: 10n ** 132n, s: "TV" }, { v: 10n ** 129n, s: "DV" }, { v: 10n ** 126n, s: "UV" },
-  { v: 10n ** 123n, s: "DcI" }, { v: 10n ** 120n, s: "NoI" }, { v: 10n ** 117n, s: "OcI" },
-  { v: 10n ** 114n, s: "SpI" }, { v: 10n ** 111n, s: "SxI" }, { v: 10n ** 108n, s: "QiI" },
-  { v: 10n ** 105n, s: "QI" }, { v: 10n ** 102n, s: "TI" }, { v: 10n ** 99n, s: "DI" },
-  { v: 10n ** 96n, s: "UI" }, { v: 10n ** 93n, s: "DcN" }, { v: 10n ** 90n, s: "NoN" },
-  { v: 10n ** 87n, s: "OcN" }, { v: 10n ** 84n, s: "SpN" }, { v: 10n ** 81n, s: "SxN" },
-  { v: 10n ** 78n, s: "QiN" }, { v: 10n ** 75n, s: "QaN" }, { v: 10n ** 72n, s: "TN" },
-  { v: 10n ** 69n, s: "BN" }, { v: 10n ** 66n, s: "MN" }, { v: 10n ** 63n, s: "kN" },
-  { v: 10n ** 60n, s: "NoDc" }, { v: 10n ** 57n, s: "OcDc" }, { v: 10n ** 54n, s: "SpDc" },
-  { v: 10n ** 51n, s: "SxDc" }, { v: 10n ** 48n, s: "QiDc" }, { v: 10n ** 45n, s: "QaDc" },
-  { v: 10n ** 42n, s: "TDc" }, { v: 10n ** 39n, s: "DDc" }, { v: 10n ** 36n, s: "UDc" },
-  { v: 10n ** 33n, s: "Dc" }, { v: 10n ** 30n, s: "No" }, { v: 10n ** 27n, s: "Oc" },
-  { v: 10n ** 24n, s: "Sp" }, { v: 10n ** 21n, s: "Sx" }, { v: 10n ** 18n, s: "Qi" },
-  { v: 10n ** 15n, s: "Qa" }, { v: 10n ** 12n, s: "T" }, { v: 10n ** 9n, s: "B" },
-  { v: 10n ** 6n, s: "M" }, { v: 10n ** 3n, s: "k" }
+  { v: 10n**258n, s: "Qiu" }, { v: 10n**255n, s: "Qu" },  { v: 10n**252n, s: "Tu" },
+  { v: 10n**249n, s: "Du" },  { v: 10n**246n, s: "Uc" },  { v: 10n**243n, s: "DcQ" },
+  { v: 10n**240n, s: "NoQ" }, { v: 10n**237n, s: "OcQ" }, { v: 10n**234n, s: "SpQ" },
+  { v: 10n**231n, s: "SxQ" }, { v: 10n**228n, s: "QiQ" }, { v: 10n**225n, s: "QQ" },
+  { v: 10n**222n, s: "TQ" },  { v: 10n**219n, s: "DQ" },  { v: 10n**216n, s: "UQ" },
+  { v: 10n**213n, s: "DcTr"}, { v: 10n**210n, s: "NoTr"}, { v: 10n**207n, s: "OcTr"},
+  { v: 10n**204n, s: "SpTr"}, { v: 10n**201n, s: "SxTr"}, { v: 10n**198n, s: "QiTr"},
+  { v: 10n**195n, s: "QTr" }, { v: 10n**192n, s: "TTr" }, { v: 10n**189n, s: "DTr" },
+  { v: 10n**186n, s: "UTr" }, { v: 10n**183n, s: "DcT" }, { v: 10n**180n, s: "NoT" },
+  { v: 10n**177n, s: "OcT" }, { v: 10n**174n, s: "SpT" }, { v: 10n**171n, s: "SxT" },
+  { v: 10n**168n, s: "QiT" }, { v: 10n**165n, s: "QT" },  { v: 10n**162n, s: "TT" },
+  { v: 10n**159n, s: "DT" },  { v: 10n**156n, s: "UT" },  { v: 10n**153n, s: "DcV" },
+  { v: 10n**150n, s: "NoV" }, { v: 10n**147n, s: "OcV" }, { v: 10n**144n, s: "SpV" },
+  { v: 10n**141n, s: "SxV" }, { v: 10n**138n, s: "QiV" }, { v: 10n**135n, s: "QV" },
+  { v: 10n**132n, s: "TV" },  { v: 10n**129n, s: "DV" },  { v: 10n**126n, s: "UV" },
+  { v: 10n**123n, s: "DcI" }, { v: 10n**120n, s: "NoI" }, { v: 10n**117n, s: "OcI" },
+  { v: 10n**114n, s: "SpI" }, { v: 10n**111n, s: "SxI" }, { v: 10n**108n, s: "QiI" },
+  { v: 10n**105n, s: "QI" },  { v: 10n**102n, s: "TI" },  { v: 10n**99n,  s: "DI" },
+  { v: 10n**96n,  s: "UI" },  { v: 10n**93n,  s: "DcN" }, { v: 10n**90n,  s: "NoN" },
+  { v: 10n**87n,  s: "OcN" }, { v: 10n**84n,  s: "SpN" }, { v: 10n**81n,  s: "SxN" },
+  { v: 10n**78n,  s: "QiN" }, { v: 10n**75n,  s: "QaN" }, { v: 10n**72n,  s: "TN" },
+  { v: 10n**69n,  s: "BN" },  { v: 10n**66n,  s: "MN" },  { v: 10n**63n,  s: "kN" },
+  { v: 10n**60n,  s: "NoDc"}, { v: 10n**57n,  s: "OcDc"}, { v: 10n**54n,  s: "SpDc"},
+  { v: 10n**51n,  s: "SxDc"}, { v: 10n**48n,  s: "QiDc"}, { v: 10n**45n,  s: "QaDc"},
+  { v: 10n**42n,  s: "TDc" }, { v: 10n**39n,  s: "DDc" }, { v: 10n**36n,  s: "UDc" },
+  { v: 10n**33n,  s: "Dc" },  { v: 10n**30n,  s: "No" },  { v: 10n**27n,  s: "Oc" },
+  { v: 10n**24n,  s: "Sp" },  { v: 10n**21n,  s: "Sx" },  { v: 10n**18n,  s: "Qi" },
+  { v: 10n**15n,  s: "Qa" },  { v: 10n**12n,  s: "T" },   { v: 10n**9n,   s: "B" },
+  { v: 10n**6n,   s: "M" },   { v: 10n**3n,   s: "k" }
 ];
 
 const SFX = {
-  k: 10n ** 3n, m: 10n ** 6n, b: 10n ** 9n, t: 10n ** 12n, qa: 10n ** 15n, qi: 10n ** 18n,
-  sx: 10n ** 21n, sp: 10n ** 24n, oc: 10n ** 27n, no: 10n ** 30n, dc: 10n ** 33n,
-  udc: 10n ** 36n, ddc: 10n ** 39n, tdc: 10n ** 42n, qadc: 10n ** 45n, qidc: 10n ** 48n,
-  sxdc: 10n ** 51n, spdc: 10n ** 54n, ocdc: 10n ** 57n, nodc: 10n ** 60n,
-  kn: 10n ** 63n, mn: 10n ** 66n, bn: 10n ** 69n, tn: 10n ** 72n, qan: 10n ** 75n, qin: 10n ** 78n,
-  sxn: 10n ** 81n, spn: 10n ** 84n, ocn: 10n ** 87n, non: 10n ** 90n, dcn: 10n ** 93n,
-  ui: 10n ** 96n, di: 10n ** 99n, ti: 10n ** 102n, qi_i: 10n ** 105n, qii: 10n ** 108n,
-  sxi: 10n ** 111n, spi: 10n ** 114n, oci: 10n ** 117n, noi: 10n ** 120n, dci: 10n ** 123n,
-  uv: 10n ** 126n, dv: 10n ** 129n, tv: 10n ** 132n, qv: 10n ** 135n, qiv: 10n ** 138n,
-  sxv: 10n ** 141n, spv: 10n ** 144n, ocv: 10n ** 147n, nov: 10n ** 150n, dcv: 10n ** 153n,
-  ut: 10n ** 156n, dt: 10n ** 159n, tt: 10n ** 162n, qt: 10n ** 165n, qit: 10n ** 168n,
-  sxt: 10n ** 171n, spt: 10n ** 174n, oct: 10n ** 177n, not: 10n ** 180n, dct: 10n ** 183n,
-  utr: 10n ** 186n, dtr: 10n ** 189n, ttr: 10n ** 192n, qtr: 10n ** 195n, qitr: 10n ** 198n,
-  sxtr: 10n ** 201n, sptr: 10n ** 204n, octr: 10n ** 207n, notr: 10n ** 210n, dctr: 10n ** 213n,
-  uq: 10n ** 216n, dq: 10n ** 219n, tq: 10n ** 222n, qq: 10n ** 225n, qiq: 10n ** 228n,
-  sxq: 10n ** 231n, spq: 10n ** 234n, ocq: 10n ** 237n, noq: 10n ** 240n, dcq: 10n ** 243n,
-  uc: 10n ** 246n, du: 10n ** 249n, tu: 10n ** 252n, qu: 10n ** 255n, qiu: 10n ** 258n,
+  k:10n**3n, m:10n**6n, b:10n**9n, t:10n**12n, qa:10n**15n, qi:10n**18n,
+  sx:10n**21n, sp:10n**24n, oc:10n**27n, no:10n**30n, dc:10n**33n,
+  udc:10n**36n, ddc:10n**39n, tdc:10n**42n, qadc:10n**45n, qidc:10n**48n,
+  sxdc:10n**51n, spdc:10n**54n, ocdc:10n**57n, nodc:10n**60n,
+  kn:10n**63n, mn:10n**66n, bn:10n**69n, tn:10n**72n, qan:10n**75n, qin:10n**78n,
+  sxn:10n**81n, spn:10n**84n, ocn:10n**87n, non:10n**90n, dcn:10n**93n,
+  ui:10n**96n, di:10n**99n, ti:10n**102n, qi_i:10n**105n, qii:10n**108n,
+  sxi:10n**111n, spi:10n**114n, oci:10n**117n, noi:10n**120n, dci:10n**123n,
+  uv:10n**126n, dv:10n**129n, tv:10n**132n, qv:10n**135n, qiv:10n**138n,
+  sxv:10n**141n, spv:10n**144n, ocv:10n**147n, nov:10n**150n, dcv:10n**153n,
+  ut:10n**156n, dt:10n**159n, tt:10n**162n, qt:10n**165n, qit:10n**168n,
+  sxt:10n**171n, spt:10n**174n, oct:10n**177n, not:10n**180n, dct:10n**183n,
+  utr:10n**186n, dtr:10n**189n, ttr:10n**192n, qtr:10n**195n, qitr:10n**198n,
+  sxtr:10n**201n, sptr:10n**204n, octr:10n**207n, notr:10n**210n, dctr:10n**213n,
+  uq:10n**216n, dq:10n**219n, tq:10n**222n, qq:10n**225n, qiq:10n**228n,
+  sxq:10n**231n, spq:10n**234n, ocq:10n**237n, noq:10n**240n, dcq:10n**243n,
+  uc:10n**246n, du:10n**249n, tu:10n**252n, qu:10n**255n, qiu:10n**258n,
   inf: MAX_LIMIT, infinity: MAX_LIMIT
 };
 
-let games = {};
-let tournaments = {};
-let playerStats = loadStats();
-let gameHistory = loadHistory();
-let playerStreaks = loadStreaks();
-let onlineGames = new Map();
+let games         = {};
+let tournaments   = {};
+let playerStats   = loadStats();
+let gameHistory   = loadHistory();
+let playerStreaks  = loadStreaks();
+let onlineGames   = new Map();
 let onlineInvites = new Map();
-const inviteTimeouts = new Map();
-const playerCache = new Map();
+const inviteTimeouts    = new Map();
+const playerCache       = new Map();
 const imageModeByThread = {};
-const spectators = new Map();
-const rematchPending = new Map();
-const aiDifficulty = new Map();
-const onlineBetPending = new Map();
+const spectators        = new Map();
+const rematchPending    = new Map();
+const aiDifficulty      = new Map();
 
 if (!fs.existsSync(ASSETS_DIR)) fs.mkdirSync(ASSETS_DIR, { recursive: true });
 
@@ -171,16 +170,13 @@ async function formatNumber(num) {
     const r = await axios.get(`${FORMAT_URL}?n=${big.toString()}`, { timeout: 3000 });
     if (r.data?.success) return r.data.isInfinity ? "∞" : r.data.formatted;
   } catch {}
-  const neg = big < 0n,
-    abs = neg ? -big : big;
+  const neg = big < 0n, abs = neg ? -big : big;
   for (const tier of TIERS) {
     if (abs >= tier.v) {
-      const intPart = abs / tier.v;
-      const rem = abs % tier.v;
-      const decPart = (rem * 100n) / tier.v;
+      const intPart = abs / tier.v, rem = abs % tier.v, decPart = (rem * 100n) / tier.v;
       const prefix = neg ? "-" : "";
       if (decPart > 0n) {
-        const dec = Number(decPart).toString().padStart(2, "0").slice(0, 2).replace(/0+$/, "");
+        const dec = Number(decPart).toString().padStart(2,"0").slice(0,2).replace(/0+$/,"");
         return dec ? `${prefix}${intPart}.${dec}${tier.s}` : `${prefix}${intPart}${tier.s}`;
       }
       return `${prefix}${intPart}${tier.s}`;
@@ -199,11 +195,9 @@ async function parseAmount(input) {
   } catch {}
   const m = str.match(/^(-?\d+(?:\.\d+)?)([a-z]+)?$/i);
   if (!m) return 0n;
-  const val = parseFloat(m[1]),
-    sfx = (m[2] || "").toLowerCase();
+  const val = parseFloat(m[1]), sfx = (m[2] || "").toLowerCase();
   if (isNaN(val)) return 0n;
-  const base = BigInt(Math.floor(Math.abs(val))),
-    neg = val < 0;
+  const base = BigInt(Math.floor(Math.abs(val))), neg = val < 0;
   if (!sfx) return neg ? -base : base;
   const mult = SFX[sfx];
   if (mult) {
@@ -235,35 +229,15 @@ async function updateUserCash(uid, amount) {
 }
 
 function checkWinner(board) {
-  const wins = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6]
-  ];
-  for (const [a, b, c] of wins) {
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
-  }
+  const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const [a,b,c] of wins) if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
   return null;
 }
 
 function getWinningLine(board) {
-  const wins = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6]
-  ];
+  const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
   for (const line of wins) {
-    const [a, b, c] = line;
+    const [a,b,c] = line;
     if (board[a] && board[a] === board[b] && board[a] === board[c]) return line;
   }
   return null;
@@ -274,8 +248,10 @@ function isBoardFull(board) { return board.every(c => c !== null); }
 function displayBoard(board) {
   let d = "";
   for (let i = 0; i < 9; i++) {
-    d += board[i] === "X" ? "X" : board[i] === "O" ? "O" : String(i + 1);
-    d += (i + 1) % 3 === 0 ? "\n" : " | ";
+    if (board[i] === "X")      d += "❌";
+    else if (board[i] === "O") d += "⭕";
+    else                        d += "⬜";
+    d += (i + 1) % 3 === 0 ? "\n" : " ";
   }
   return d;
 }
@@ -287,17 +263,20 @@ function shuffleArray(arr) {
   }
 }
 
-function getAvailableMoves(board) { return board.map((v, i) => v === null ? i : -1).filter(i => i !== -1); }
+function getAvailableMoves(board) { return board.map((v,i) => v === null ? i : -1).filter(i => i !== -1); }
 
 async function loadImageFromUrl(url) {
   try {
     const res = await axios.get(url, {
       responseType: "arraybuffer",
-      timeout: 8000,
+      timeout: 10000,
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
-        "Cache-Control": "no-cache"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "image/webp,image/apng,image/jpeg,image/png,image/*,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.facebook.com/",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
       }
     });
     const { loadImage } = require("canvas");
@@ -307,7 +286,9 @@ async function loadImageFromUrl(url) {
 
 async function getPlayerInfo(uid, usersData) {
   if (uid === "AI") {
-    const avatar = BOT_UID ? await loadImageFromUrl(`https://graph.facebook.com/${BOT_UID}/picture?width=512&height=512&type=large`) : null;
+    const avatar = BOT_UID
+      ? await loadImageFromUrl(`https://graph.facebook.com/${BOT_UID}/picture?width=512&height=512&type=large`)
+      : null;
     return { avatar, name: BOT_NAME, uid: "AI" };
   }
   const nuid = Number(uid);
@@ -324,26 +305,23 @@ async function getPlayerInfo(uid, usersData) {
 }
 
 function lightenColor(hex, amt) {
-  const n = parseInt(hex.replace("#", ""), 16);
-  return `rgb(${Math.min(255, (n >> 16) + amt)},${Math.min(255, ((n >> 8) & 0xff) + amt)},${Math.min(255, (n & 0xff) + amt)})`;
+  const n = parseInt(hex.replace("#",""), 16);
+  return `rgb(${Math.min(255,(n>>16)+amt)},${Math.min(255,((n>>8)&0xff)+amt)},${Math.min(255,(n&0xff)+amt)})`;
 }
 
 function drawAvatar(ctx, info, cx, cy, radius, borderColor) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.clip();
   if (info.avatar) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.clip();
     ctx.drawImage(info.avatar, cx - radius, cy - radius, radius * 2, radius * 2);
-    ctx.restore();
   } else {
     const grad = ctx.createRadialGradient(cx - radius * 0.3, cy - radius * 0.3, 0, cx, cy, radius);
     grad.addColorStop(0, lightenColor(borderColor, 60));
     grad.addColorStop(1, borderColor);
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = grad;
-    ctx.fill();
+    ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
     ctx.font = `bold ${Math.floor(radius * 0.9)}px Arial`;
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
@@ -351,6 +329,7 @@ function drawAvatar(ctx, info, cx, cy, radius, borderColor) {
     ctx.fillText((info.name || "?")[0].toUpperCase(), cx, cy);
     ctx.textBaseline = "alphabetic";
   }
+  ctx.restore();
   ctx.beginPath();
   ctx.arc(cx, cy, radius + 3, 0, Math.PI * 2);
   ctx.strokeStyle = borderColor;
@@ -362,18 +341,12 @@ function drawX(ctx, cx, cy, size, color = "#f87171", alpha = 1) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(8, size * 0.22);
-  ctx.lineCap = "round";
+  ctx.lineWidth   = Math.max(8, size * 0.22);
+  ctx.lineCap     = "round";
   ctx.shadowColor = color;
-  ctx.shadowBlur = 24;
-  ctx.beginPath();
-  ctx.moveTo(cx - size, cy - size);
-  ctx.lineTo(cx + size, cy + size);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx + size, cy - size);
-  ctx.lineTo(cx - size, cy + size);
-  ctx.stroke();
+  ctx.shadowBlur  = 24;
+  ctx.beginPath(); ctx.moveTo(cx - size, cy - size); ctx.lineTo(cx + size, cy + size); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + size, cy - size); ctx.lineTo(cx - size, cy + size); ctx.stroke();
   ctx.restore();
 }
 
@@ -381,13 +354,11 @@ function drawO(ctx, cx, cy, size, color = "#34d399", alpha = 1) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(8, size * 0.22);
-  ctx.lineCap = "round";
+  ctx.lineWidth   = Math.max(8, size * 0.22);
+  ctx.lineCap     = "round";
   ctx.shadowColor = color;
-  ctx.shadowBlur = 24;
-  ctx.beginPath();
-  ctx.arc(cx, cy, size, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.shadowBlur  = 24;
+  ctx.beginPath(); ctx.arc(cx, cy, size, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
 }
 
@@ -399,24 +370,19 @@ function drawCellSymbol(ctx, symbol, cx, cy, size, alpha = 1) {
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
 }
 
 function minimax(board, depth, isMax, aiSym, humanSym, alpha = -Infinity, beta = Infinity) {
   const winner = checkWinner(board);
-  if (winner === aiSym) return 10 - depth;
+  if (winner === aiSym)    return 10 - depth;
   if (winner === humanSym) return depth - 10;
-  if (isBoardFull(board)) return 0;
-  if (depth >= 6) return 0;
-
+  if (isBoardFull(board))  return 0;
+  if (depth >= 6)          return 0;
   const moves = getAvailableMoves(board);
   if (isMax) {
     let best = -Infinity;
@@ -443,14 +409,12 @@ function minimax(board, depth, isMax, aiSym, humanSym, alpha = -Infinity, beta =
 
 function minimaxMove(board, aiSym, humanSym) {
   const moves = getAvailableMoves(board);
-  let best = -Infinity,
-    bestMove = moves[0];
+  let best = -Infinity, bestMove = moves[0];
   for (const m of moves) {
     board[m] = aiSym;
     const score = minimax(board, 0, false, aiSym, humanSym);
     board[m] = null;
-    if (score > best) { best = score;
-      bestMove = m; }
+    if (score > best) { best = score; bestMove = m; }
   }
   return bestMove;
 }
@@ -468,44 +432,7 @@ async function aiMoveMistral(board, aiSymbol, humanSymbol, difficulty = "normal"
     if (Math.random() < 0.2) return available[Math.floor(Math.random() * available.length)];
     return minimaxMove([...board], aiSymbol, humanSymbol);
   }
-  if (difficulty === "impossible") {
-    return minimaxMove([...board], aiSymbol, humanSymbol);
-  }
-
-  const boardDisplay = [];
-  for (let i = 0; i < 9; i++) boardDisplay.push(board[i] === null ? (i + 1) : board[i]);
-  const prompt =
-    `You are playing TicTacToe. You are "${aiSymbol}". Opponent is "${humanSymbol}".
-Board (1-9):
-${boardDisplay[0]} | ${boardDisplay[1]} | ${boardDisplay[2]}
-${boardDisplay[3]} | ${boardDisplay[4]} | ${boardDisplay[5]}
-${boardDisplay[6]} | ${boardDisplay[7]} | ${boardDisplay[8]}
-Available: ${available.map(i => i + 1).join(", ")}
-WIN or BLOCK. Return ONLY one number (1-9).`;
-  try {
-    const res = await axios.post(MISTRAL_API, {
-        model: "mistral-large-latest",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 10,
-        temperature: 0.1
-      }, {
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${MISTRAL_KEY}` },
-        timeout: 10000
-      }
-    );
-    const reply = res.data.choices[0].message.content.trim();
-    const move = parseInt(reply.match(/\d/)?.[0]) - 1;
-    if (available.includes(move)) return move;
-    const alts = reply.match(/\d/g);
-    if (alts)
-      for (const d of alts) {
-        const alt = parseInt(d) - 1;
-        if (available.includes(alt)) return alt;
-      }
-    return minimaxMove([...board], aiSymbol, humanSymbol);
-  } catch {
-    return minimaxMove([...board], aiSymbol, humanSymbol);
-  }
+  return minimaxMove([...board], aiSymbol, humanSymbol);
 }
 
 function resetGame(gameID, p1, p2, opts = {}) {
@@ -520,46 +447,37 @@ function resetGame(gameID, p1, p2, opts = {}) {
     inProgress: true,
     isMathChallenge: false,
     threadID: opts.threadID || p1.threadID || null,
+    partnerThreadID: opts.partnerThreadID || null,
     isTournamentGame: !!opts.isTournamentGame,
     tournamentID: opts.tournamentID || null,
     matchIndex: opts.matchIndex != null ? opts.matchIndex : null,
     isAI: !!opts.isAI,
     aiDifficulty: opts.aiDifficulty || "normal",
     isOnline: !!opts.isOnline,
-    partnerThreadId: opts.partnerThreadId || null,
     imageMode,
     moves: [],
     bets: opts.bets || null,
     odds: opts.odds || null,
     startTime: Date.now(),
-    lastMoveTime: Date.now(),
-    moveTimeouts: []
+    lastMoveTime: Date.now()
   };
 }
 
 async function generateBoardImage(board, currentPlayer, players, usersData, gameType = "normal", bets = null, odds = null, winLine = null) {
-  const W = 1400,
-    H = 1060;
+  const W = 1400, H = 1060;
   const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext("2d");
+  const ctx    = canvas.getContext("2d");
 
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, "#07050f");
-  bg.addColorStop(0.5, "#0f0d20");
-  bg.addColorStop(1, "#070515");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  bg.addColorStop(0, "#07050f"); bg.addColorStop(0.5, "#0f0d20"); bg.addColorStop(1, "#070515");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "rgba(255,255,255,0.018)";
-  for (let x = 0; x < W; x += 34)
-    for (let y = 0; y < H; y += 34) ctx.fillRect(x, y, 1.5, 1.5);
+  for (let x = 0; x < W; x += 34) for (let y = 0; y < H; y += 34) ctx.fillRect(x, y, 1.5, 1.5);
 
-  const modeColor = { tournament: "#fbbf24", online: "#06b6d4", normal: "#818cf8" } [gameType] || "#818cf8";
-  const modeLabel = { tournament: "TOURNAMENT", online: "ONLINE", normal: "NORMAL" } [gameType] || "NORMAL";
-  ctx.font = "bold 44px Arial";
-  ctx.fillStyle = modeColor;
-  ctx.textAlign = "center";
-  ctx.shadowColor = modeColor;
-  ctx.shadowBlur = 16;
+  const modeColor = { tournament: "#fbbf24", online: "#06b6d4", normal: "#818cf8" }[gameType] || "#818cf8";
+  const modeLabel = { tournament: "TOURNAMENT", online: "ONLINE", normal: "NORMAL" }[gameType] || "NORMAL";
+  ctx.font = "bold 44px Arial"; ctx.fillStyle = modeColor; ctx.textAlign = "center";
+  ctx.shadowColor = modeColor; ctx.shadowBlur = 16;
   ctx.fillText(`ULTIMATE TICTACTOE — ${modeLabel}`, W / 2, 68);
   ctx.shadowBlur = 0;
 
@@ -568,29 +486,23 @@ async function generateBoardImage(board, currentPlayer, players, usersData, game
   const BOARD_SIZE = 540;
   const bx = W / 2 - BOARD_SIZE / 2;
   const by = 130;
-  ctx.fillStyle = "rgba(15,12,35,0.85)";
-  roundRect(ctx, bx - 18, by - 18, BOARD_SIZE + 36, BOARD_SIZE + 36, 20);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(129,140,248,0.5)";
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
 
-  ctx.strokeStyle = "#818cf8";
-  ctx.lineWidth = 5;
+  ctx.fillStyle = "rgba(15,12,35,0.85)";
+  roundRect(ctx, bx - 18, by - 18, BOARD_SIZE + 36, BOARD_SIZE + 36, 20); ctx.fill();
+  ctx.strokeStyle = "rgba(129,140,248,0.5)"; ctx.lineWidth = 2.5; ctx.stroke();
+
+  ctx.strokeStyle = "#818cf8"; ctx.lineWidth = 5;
   ctx.beginPath();
   for (let i = 1; i <= 2; i++) {
-    ctx.moveTo(bx + (BOARD_SIZE / 3) * i, by);
-    ctx.lineTo(bx + (BOARD_SIZE / 3) * i, by + BOARD_SIZE);
-    ctx.moveTo(bx, by + (BOARD_SIZE / 3) * i);
-    ctx.lineTo(bx + BOARD_SIZE, by + (BOARD_SIZE / 3) * i);
+    ctx.moveTo(bx + (BOARD_SIZE / 3) * i, by); ctx.lineTo(bx + (BOARD_SIZE / 3) * i, by + BOARD_SIZE);
+    ctx.moveTo(bx, by + (BOARD_SIZE / 3) * i); ctx.lineTo(bx + BOARD_SIZE, by + (BOARD_SIZE / 3) * i);
   }
   ctx.stroke();
 
   for (let i = 0; i < 9; i++) {
-    const row = Math.floor(i / 3),
-      col = i % 3;
-    const cx = bx + col * (BOARD_SIZE / 3) + BOARD_SIZE / 6;
-    const cy = by + row * (BOARD_SIZE / 3) + BOARD_SIZE / 6;
+    const row = Math.floor(i / 3), col = i % 3;
+    const cx  = bx + col * (BOARD_SIZE / 3) + BOARD_SIZE / 6;
+    const cy  = by + row * (BOARD_SIZE / 3) + BOARD_SIZE / 6;
     const isWinCell = winLine?.includes(i);
 
     if (isWinCell) {
@@ -602,68 +514,50 @@ async function generateBoardImage(board, currentPlayer, players, usersData, game
     if (board[i] !== null) {
       drawCellSymbol(ctx, board[i], cx, cy, 78, isWinCell ? 1 : 0.95);
       if (isWinCell) {
-        ctx.strokeStyle = "#fbbf24";
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 3;
         roundRect(ctx, bx + col * (BOARD_SIZE / 3) + 4, by + row * (BOARD_SIZE / 3) + 4, BOARD_SIZE / 3 - 8, BOARD_SIZE / 3 - 8, 10);
         ctx.stroke();
       }
     } else {
-      ctx.font = "bold 28px Arial";
-      ctx.fillStyle = "rgba(255,255,255,0.18)";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(i + 1), cx, cy);
-      ctx.textBaseline = "alphabetic";
+      ctx.font = "bold 28px Arial"; ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), cx, cy); ctx.textBaseline = "alphabetic";
     }
   }
 
   if (winLine && winLine.length === 3) {
     const getCellCenter = (idx) => {
-      const r = Math.floor(idx / 3),
-        c = idx % 3;
+      const r = Math.floor(idx / 3), c = idx % 3;
       return { x: bx + c * (BOARD_SIZE / 3) + BOARD_SIZE / 6, y: by + r * (BOARD_SIZE / 3) + BOARD_SIZE / 6 };
     };
-    const c1 = getCellCenter(winLine[0]),
-      c3 = getCellCenter(winLine[2]);
+    const c1 = getCellCenter(winLine[0]), c3 = getCellCenter(winLine[2]);
     ctx.save();
-    ctx.strokeStyle = "#fbbf24";
-    ctx.lineWidth = 10;
-    ctx.lineCap = "round";
-    ctx.shadowColor = "#fbbf24";
-    ctx.shadowBlur = 30;
-    ctx.globalAlpha = 0.85;
-    ctx.beginPath();
-    ctx.moveTo(c1.x, c1.y);
-    ctx.lineTo(c3.x, c3.y);
-    ctx.stroke();
+    ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 10; ctx.lineCap = "round";
+    ctx.shadowColor = "#fbbf24"; ctx.shadowBlur = 30; ctx.globalAlpha = 0.85;
+    ctx.beginPath(); ctx.moveTo(c1.x, c1.y); ctx.lineTo(c3.x, c3.y); ctx.stroke();
     ctx.restore();
   }
 
-  const PANEL_W = 320,
-    PANEL_H = 480;
+  const PANEL_W = 320, PANEL_H = 480;
   for (let i = 0; i < 2; i++) {
-    const info = playerInfos[i];
-    const pdata = players[i];
+    const info      = playerInfos[i];
+    const pdata     = players[i];
     const isCurrent = currentPlayer?.id === pdata.id;
-    const px = i === 0 ? 55 : W - PANEL_W - 55;
-    const py = 120;
-    const symColor = pdata.symbol === "X" ? "#f87171" : "#34d399";
+    const px        = i === 0 ? 55 : W - PANEL_W - 55;
+    const py        = 120;
+    const symColor  = pdata.symbol === "X" ? "#f87171" : "#34d399";
 
     const panelG = ctx.createLinearGradient(px, py, px, py + PANEL_H);
     panelG.addColorStop(0, isCurrent ? "rgba(99,102,241,0.22)" : "rgba(20,18,45,0.7)");
     panelG.addColorStop(1, isCurrent ? "rgba(99,102,241,0.08)" : "rgba(10,8,25,0.7)");
     ctx.fillStyle = panelG;
-    roundRect(ctx, px, py, PANEL_W, PANEL_H, 24);
-    ctx.fill();
+    roundRect(ctx, px, py, PANEL_W, PANEL_H, 24); ctx.fill();
     ctx.strokeStyle = isCurrent ? "#818cf8" : "rgba(255,255,255,0.12)";
-    ctx.lineWidth = isCurrent ? 2.5 : 1.5;
-    ctx.stroke();
+    ctx.lineWidth   = isCurrent ? 2.5 : 1.5; ctx.stroke();
 
     drawAvatar(ctx, info, px + PANEL_W / 2, py + 100, 70, symColor);
 
-    ctx.font = "bold 24px Arial";
-    ctx.fillStyle = isCurrent ? "#e0e7ff" : "#9ca3af";
-    ctx.textAlign = "center";
+    ctx.font = "bold 24px Arial"; ctx.fillStyle = isCurrent ? "#e0e7ff" : "#9ca3af"; ctx.textAlign = "center";
     ctx.fillText(info.name.substring(0, 18), px + PANEL_W / 2, py + 200);
 
     if (pdata.symbol === "X") drawX(ctx, px + PANEL_W / 2, py + 258, 28);
@@ -672,110 +566,92 @@ async function generateBoardImage(board, currentPlayer, players, usersData, game
     const stats = playerStats[pdata.id];
     if (stats) {
       const wr = stats.played > 0 ? Math.round(stats.wins / stats.played * 100) : 0;
-      ctx.font = "14px Arial";
-      ctx.fillStyle = "#6b7280";
+      ctx.font = "14px Arial"; ctx.fillStyle = "#6b7280";
       ctx.fillText(`${stats.wins}V/${stats.losses}D | ${wr}%`, px + PANEL_W / 2, py + 300);
       const streak = playerStreaks[pdata.id];
       if (streak?.current >= 2) {
-        ctx.font = "bold 14px Arial";
-        ctx.fillStyle = "#f59e0b";
+        ctx.font = "bold 14px Arial"; ctx.fillStyle = "#f59e0b";
         ctx.fillText(`Streak ${streak.current}`, px + PANEL_W / 2, py + 322);
       }
     }
 
-    if (bets && odds) {
+    if (bets) {
       const betAmt = bets?.[pdata.id];
-      const odd = odds?.[pdata.id];
+      const odd    = odds?.[pdata.id];
       if (betAmt !== undefined) {
-        ctx.font = "bold 16px Arial";
-        ctx.fillStyle = "#fbbf24";
+        ctx.font = "bold 16px Arial"; ctx.fillStyle = "#fbbf24";
         ctx.fillText(`Mise: ${await formatNumber(toBigInt(betAmt))}$`, px + PANEL_W / 2, py + 348);
         if (odd) {
           ctx.fillStyle = "#86efac";
           ctx.fillText(`Cote: x${odd}`, px + PANEL_W / 2, py + 372);
           ctx.fillStyle = "#c4b5fd";
           ctx.fillText(`Gain: ${await formatNumber(toBigInt(Math.floor(Number(toBigInt(betAmt)) * odd)))}$`, px + PANEL_W / 2, py + 396);
+        } else {
+          const totalPot = Object.values(bets).reduce((s, b) => s + toBigInt(b), 0n);
+          ctx.fillStyle = "#c4b5fd";
+          ctx.fillText(`Pot total: ${await formatNumber(totalPot)}$`, px + PANEL_W / 2, py + 372);
         }
       }
     }
 
     if (isCurrent && !winLine) {
-      ctx.font = "bold 20px Arial";
-      ctx.fillStyle = "#818cf8";
-      ctx.shadowColor = "#818cf8";
-      ctx.shadowBlur = 10;
+      ctx.font = "bold 20px Arial"; ctx.fillStyle = "#818cf8";
+      ctx.shadowColor = "#818cf8"; ctx.shadowBlur = 10;
       ctx.fillText("TON TOUR", px + PANEL_W / 2, py + PANEL_H - 30);
       ctx.shadowBlur = 0;
     }
   }
 
   if (currentPlayer && !winLine) {
-    ctx.font = "bold 32px Arial";
-    ctx.fillStyle = "#e0e7ff";
-    ctx.textAlign = "center";
+    ctx.font = "bold 32px Arial"; ctx.fillStyle = "#e0e7ff"; ctx.textAlign = "center";
     ctx.fillText(`Tour: ${currentPlayer.name}`, W / 2, by + BOARD_SIZE + 52);
-    const avail = board.map((c, idx) => c === null ? idx + 1 : null).filter(Boolean);
-    ctx.font = "20px Arial";
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    const avail = board.map((c,idx) => c === null ? idx + 1 : null).filter(Boolean);
+    ctx.font = "20px Arial"; ctx.fillStyle = "rgba(255,255,255,0.4)";
     ctx.fillText(`Disponibles: ${avail.join(" · ")}`, W / 2, by + BOARD_SIZE + 86);
   }
 
-  ctx.font = "12px Arial";
-  ctx.fillStyle = "rgba(129,140,248,0.3)";
-  ctx.textAlign = "center";
-  ctx.fillText("HEDGEHOG MORPION — ULTIMATE v16", W / 2, H - 12);
+  ctx.font = "12px Arial"; ctx.fillStyle = "rgba(129,140,248,0.3)"; ctx.textAlign = "center";
+  ctx.fillText("HEDGEHOG MORPION — ULTIMATE v17", W / 2, H - 12);
   return canvas.toBuffer("image/png");
 }
 
 async function generateEndGameImage(board, winner, players, usersData, isDraw, gainInfo = null, winLine = null) {
-  const W = 1400,
-    H = 1000;
+  const W = 1400, H = 1000;
   const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext("2d");
+  const ctx    = canvas.getContext("2d");
 
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, isDraw ? "#050d18" : winner ? "#06100a" : "#100506");
-  bg.addColorStop(1, "#07050f");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  bg.addColorStop(0, isDraw ? "#050d18" : "#06100a"); bg.addColorStop(1, "#07050f");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "rgba(255,255,255,0.018)";
-  for (let x = 0; x < W; x += 34)
-    for (let y = 0; y < H; y += 34) ctx.fillRect(x, y, 1.5, 1.5);
+  for (let x = 0; x < W; x += 34) for (let y = 0; y < H; y += 34) ctx.fillRect(x, y, 1.5, 1.5);
 
   const borderG = ctx.createLinearGradient(0, 0, W, H);
   borderG.addColorStop(0, isDraw ? "#60a5fa" : "#34d399");
   borderG.addColorStop(1, isDraw ? "#3b82f6" : "#fbbf24");
-  ctx.strokeStyle = borderG;
-  ctx.lineWidth = 3;
-  roundRect(ctx, 10, 10, W - 20, H - 20, 20);
-  ctx.stroke();
+  ctx.strokeStyle = borderG; ctx.lineWidth = 3;
+  roundRect(ctx, 10, 10, W - 20, H - 20, 20); ctx.stroke();
 
   const playerInfos = await Promise.all(players.map(p => getPlayerInfo(p.id, usersData)));
 
   const BOARD_SIZE = 460;
   const bx = W / 2 - BOARD_SIZE / 2;
   const by = 100;
-  ctx.fillStyle = "rgba(10,8,25,0.85)";
-  roundRect(ctx, bx - 16, by - 16, BOARD_SIZE + 32, BOARD_SIZE + 32, 18);
-  ctx.fill();
-  ctx.strokeStyle = isDraw ? "#60a5fa" : "#fbbf24";
-  ctx.lineWidth = 2;
-  ctx.stroke();
 
-  ctx.strokeStyle = isDraw ? "#60a5fa" : "#fbbf24";
-  ctx.lineWidth = 4;
+  ctx.fillStyle = "rgba(10,8,25,0.85)";
+  roundRect(ctx, bx - 16, by - 16, BOARD_SIZE + 32, BOARD_SIZE + 32, 18); ctx.fill();
+  ctx.strokeStyle = isDraw ? "#60a5fa" : "#fbbf24"; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.strokeStyle = isDraw ? "#60a5fa" : "#fbbf24"; ctx.lineWidth = 4;
   ctx.beginPath();
   for (let i = 1; i <= 2; i++) {
-    ctx.moveTo(bx + (BOARD_SIZE / 3) * i, by);
-    ctx.lineTo(bx + (BOARD_SIZE / 3) * i, by + BOARD_SIZE);
-    ctx.moveTo(bx, by + (BOARD_SIZE / 3) * i);
-    ctx.lineTo(bx + BOARD_SIZE, by + (BOARD_SIZE / 3) * i);
+    ctx.moveTo(bx + (BOARD_SIZE / 3) * i, by); ctx.lineTo(bx + (BOARD_SIZE / 3) * i, by + BOARD_SIZE);
+    ctx.moveTo(bx, by + (BOARD_SIZE / 3) * i); ctx.lineTo(bx + BOARD_SIZE, by + (BOARD_SIZE / 3) * i);
   }
   ctx.stroke();
 
   for (let i = 0; i < 9; i++) {
-    const row = Math.floor(i / 3),
-      col = i % 3;
+    const row = Math.floor(i / 3), col = i % 3;
     const cx = bx + col * (BOARD_SIZE / 3) + BOARD_SIZE / 6;
     const cy = by + row * (BOARD_SIZE / 3) + BOARD_SIZE / 6;
     if (board[i] !== null) drawCellSymbol(ctx, board[i], cx, cy, 66);
@@ -783,204 +659,140 @@ async function generateEndGameImage(board, winner, players, usersData, isDraw, g
 
   if (winLine && winLine.length === 3 && !isDraw) {
     const getCtr = (idx) => {
-      const r = Math.floor(idx / 3),
-        c = idx % 3;
+      const r = Math.floor(idx / 3), c = idx % 3;
       return { x: bx + c * (BOARD_SIZE / 3) + BOARD_SIZE / 6, y: by + r * (BOARD_SIZE / 3) + BOARD_SIZE / 6 };
     };
-    const c1 = getCtr(winLine[0]),
-      c3 = getCtr(winLine[2]);
+    const c1 = getCtr(winLine[0]), c3 = getCtr(winLine[2]);
     ctx.save();
-    ctx.strokeStyle = "#fbbf24";
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round";
-    ctx.shadowColor = "#fbbf24";
-    ctx.shadowBlur = 30;
-    ctx.globalAlpha = 0.85;
-    ctx.beginPath();
-    ctx.moveTo(c1.x, c1.y);
-    ctx.lineTo(c3.x, c3.y);
-    ctx.stroke();
+    ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 8; ctx.lineCap = "round";
+    ctx.shadowColor = "#fbbf24"; ctx.shadowBlur = 30; ctx.globalAlpha = 0.85;
+    ctx.beginPath(); ctx.moveTo(c1.x, c1.y); ctx.lineTo(c3.x, c3.y); ctx.stroke();
     ctx.restore();
   }
 
-  const PANEL_W = 300,
-    PANEL_H = 180;
+  const PANEL_W = 300, PANEL_H = 180;
   for (let i = 0; i < 2; i++) {
-    const info = playerInfos[i];
-    const pdata = players[i];
-    const isWin = winner?.id === pdata.id;
-    const px = i === 0 ? 80 : W - PANEL_W - 80;
-    const py = by + BOARD_SIZE + 55;
+    const info     = playerInfos[i];
+    const pdata    = players[i];
+    const isWin    = winner?.id === pdata.id;
+    const px       = i === 0 ? 80 : W - PANEL_W - 80;
+    const py       = by + BOARD_SIZE + 55;
     const symColor = pdata.symbol === "X" ? "#f87171" : "#34d399";
 
     ctx.fillStyle = isWin ? "rgba(251,191,36,0.18)" : "rgba(20,18,45,0.7)";
-    roundRect(ctx, px, py, PANEL_W, PANEL_H, 18);
-    ctx.fill();
+    roundRect(ctx, px, py, PANEL_W, PANEL_H, 18); ctx.fill();
     ctx.strokeStyle = isWin ? "#fbbf24" : "rgba(255,255,255,0.12)";
-    ctx.lineWidth = isWin ? 2.5 : 1.5;
-    ctx.stroke();
+    ctx.lineWidth   = isWin ? 2.5 : 1.5; ctx.stroke();
 
     drawAvatar(ctx, info, px + 55, py + PANEL_H / 2, 44, symColor);
 
-    ctx.font = "bold 22px Arial";
-    ctx.fillStyle = isWin ? "#fbbf24" : "#e0e7ff";
-    ctx.textAlign = "left";
+    ctx.font = "bold 22px Arial"; ctx.fillStyle = isWin ? "#fbbf24" : "#e0e7ff"; ctx.textAlign = "left";
     ctx.fillText(info.name.substring(0, 16), px + 112, py + 48);
     if (pdata.symbol === "X") drawX(ctx, px + 130, py + 90, 16);
     else drawO(ctx, px + 130, py + 90, 16);
-
     if (isWin) {
-      ctx.font = "bold 20px Arial";
-      ctx.fillStyle = "#fbbf24";
-      ctx.shadowColor = "#fbbf24";
-      ctx.shadowBlur = 10;
-      ctx.fillText("WINNER", px + 112, py + 138);
-      ctx.shadowBlur = 0;
+      ctx.font = "bold 20px Arial"; ctx.fillStyle = "#fbbf24";
+      ctx.shadowColor = "#fbbf24"; ctx.shadowBlur = 10;
+      ctx.fillText("GAGNANT", px + 112, py + 138); ctx.shadowBlur = 0;
     }
   }
 
   const resultY = by + BOARD_SIZE + 30;
-  ctx.font = "bold 56px Arial";
-  ctx.textAlign = "center";
-  ctx.fillStyle = isDraw ? "#60a5fa" : "#fbbf24";
-  ctx.shadowColor = isDraw ? "#60a5fa" : "#fbbf24";
-  ctx.shadowBlur = 24;
+  ctx.font = "bold 56px Arial"; ctx.textAlign = "center";
+  ctx.fillStyle   = isDraw ? "#60a5fa" : "#fbbf24";
+  ctx.shadowColor = isDraw ? "#60a5fa" : "#fbbf24"; ctx.shadowBlur = 24;
   ctx.fillText(isDraw ? "MATCH NUL" : "VICTOIRE", W / 2, resultY);
-  if (!isDraw && winner) {
-    ctx.font = "bold 38px Arial";
-    ctx.fillText(winner.name, W / 2, resultY + 52);
-  }
+  if (!isDraw && winner) { ctx.font = "bold 38px Arial"; ctx.fillText(winner.name, W / 2, resultY + 52); }
   ctx.shadowBlur = 0;
 
   if (gainInfo) {
     const gainY = by + BOARD_SIZE + 265;
     ctx.fillStyle = "rgba(16,185,129,0.12)";
-    roundRect(ctx, W / 2 - 340, gainY - 30, 680, 120, 14);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(16,185,129,0.4)";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.font = "bold 20px Arial";
-    ctx.fillStyle = "#6ee7b7";
-    ctx.textAlign = "center";
+    roundRect(ctx, W / 2 - 340, gainY - 30, 680, 120, 14); ctx.fill();
+    ctx.strokeStyle = "rgba(16,185,129,0.4)"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.font = "bold 20px Arial"; ctx.fillStyle = "#6ee7b7"; ctx.textAlign = "center";
     ctx.fillText(gainInfo.line1, W / 2, gainY + 10);
-    ctx.font = "bold 26px Arial";
-    ctx.fillStyle = "#fbbf24";
+    ctx.font = "bold 26px Arial"; ctx.fillStyle = "#fbbf24";
     ctx.fillText(gainInfo.line2, W / 2, gainY + 50);
-    ctx.font = "18px Arial";
-    ctx.fillStyle = "#c4b5fd";
+    ctx.font = "18px Arial"; ctx.fillStyle = "#c4b5fd";
     ctx.fillText(gainInfo.line3, W / 2, gainY + 82);
   }
 
-  ctx.font = "12px Arial";
-  ctx.fillStyle = "rgba(129,140,248,0.3)";
-  ctx.textAlign = "center";
-  ctx.fillText("HEDGEHOG MORPION — ULTIMATE v16", W / 2, H - 14);
+  ctx.font = "12px Arial"; ctx.fillStyle = "rgba(129,140,248,0.3)"; ctx.textAlign = "center";
+  ctx.fillText("HEDGEHOG MORPION — ULTIMATE v17", W / 2, H - 14);
   return canvas.toBuffer("image/png");
 }
 
 async function generateStatsImage(pid, usersData) {
-  const W = 1400,
-    H = 960;
+  const W = 1400, H = 960;
   const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext("2d");
+  const ctx    = canvas.getContext("2d");
 
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, "#07050f");
-  bg.addColorStop(1, "#0f0d20");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  bg.addColorStop(0, "#07050f"); bg.addColorStop(1, "#0f0d20");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "rgba(255,255,255,0.018)";
-  for (let x = 0; x < W; x += 34)
-    for (let y = 0; y < H; y += 34) ctx.fillRect(x, y, 1.5, 1.5);
-  ctx.strokeStyle = "rgba(129,140,248,0.3)";
-  ctx.lineWidth = 2;
-  roundRect(ctx, 10, 10, W - 20, H - 20, 20);
-  ctx.stroke();
+  for (let x = 0; x < W; x += 34) for (let y = 0; y < H; y += 34) ctx.fillRect(x, y, 1.5, 1.5);
+  ctx.strokeStyle = "rgba(129,140,248,0.3)"; ctx.lineWidth = 2;
+  roundRect(ctx, 10, 10, W - 20, H - 20, 20); ctx.stroke();
 
-  const info = await getPlayerInfo(pid, usersData);
-  const stats = playerStats[pid] || { wins: 0, losses: 0, draws: 0, played: 0 };
+  const info   = await getPlayerInfo(pid, usersData);
+  const stats  = playerStats[pid] || { wins: 0, losses: 0, draws: 0, played: 0 };
   const streak = playerStreaks[pid] || { current: 0, best: 0 };
-  const wr = stats.played > 0 ? Math.round(stats.wins / stats.played * 100) : 0;
+  const wr     = stats.played > 0 ? Math.round(stats.wins / stats.played * 100) : 0;
 
-  ctx.font = "bold 56px Arial";
-  ctx.fillStyle = "#818cf8";
-  ctx.textAlign = "center";
-  ctx.shadowColor = "#818cf8";
-  ctx.shadowBlur = 20;
-  ctx.fillText("TICTACTOE STATS", W / 2, 90);
-  ctx.shadowBlur = 0;
+  ctx.font = "bold 56px Arial"; ctx.fillStyle = "#818cf8"; ctx.textAlign = "center";
+  ctx.shadowColor = "#818cf8"; ctx.shadowBlur = 20;
+  ctx.fillText("TICTACTOE STATS", W / 2, 90); ctx.shadowBlur = 0;
 
   drawAvatar(ctx, info, W / 2, 300, 110, "#818cf8");
-  ctx.font = "bold 44px Arial";
-  ctx.fillStyle = "#e0e7ff";
-  ctx.textAlign = "center";
+  ctx.font = "bold 44px Arial"; ctx.fillStyle = "#e0e7ff"; ctx.textAlign = "center";
   ctx.fillText(info.name, W / 2, 480);
 
   const items = [
-    { label: "Victoires", val: stats.wins, color: "#34d399" },
-    { label: "Défaites", val: stats.losses, color: "#f87171" },
-    { label: "Nuls", val: stats.draws, color: "#60a5fa" },
-    { label: "Parties", val: stats.played, color: "#fbbf24" }
+    { label: "Victoires", val: stats.wins,   color: "#34d399" },
+    { label: "Defaites",  val: stats.losses, color: "#f87171" },
+    { label: "Nuls",      val: stats.draws,  color: "#60a5fa" },
+    { label: "Parties",   val: stats.played, color: "#fbbf24" }
   ];
-  const colW2 = (W - 120) / 4,
-    sy = 540;
+  const colW2 = (W - 120) / 4, sy = 540;
   for (let i = 0; i < items.length; i++) {
     const cx = 60 + i * colW2;
     ctx.fillStyle = "rgba(255,255,255,0.05)";
-    roundRect(ctx, cx + 4, sy - 18, colW2 - 8, 80, 10);
-    ctx.fill();
-    ctx.strokeStyle = items[i].color + "55";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.font = "16px Arial";
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.textAlign = "center";
+    roundRect(ctx, cx + 4, sy - 18, colW2 - 8, 80, 10); ctx.fill();
+    ctx.strokeStyle = items[i].color + "55"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.font = "16px Arial"; ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.textAlign = "center";
     ctx.fillText(items[i].label, cx + colW2 / 2, sy + 10);
-    ctx.font = "bold 32px Arial";
-    ctx.fillStyle = items[i].color;
+    ctx.font = "bold 32px Arial"; ctx.fillStyle = items[i].color;
     ctx.fillText(String(items[i].val), cx + colW2 / 2, sy + 52);
   }
 
-  const barY = 670,
-    barW = W - 120;
+  const barY = 670, barW = W - 120;
   ctx.fillStyle = "rgba(255,255,255,0.06)";
-  roundRect(ctx, 60, barY, barW, 18, 9);
-  ctx.fill();
+  roundRect(ctx, 60, barY, barW, 18, 9); ctx.fill();
   if (stats.played > 0) {
-    const pct = stats.wins / stats.played;
+    const pct  = stats.wins / stats.played;
     const barG = ctx.createLinearGradient(60, 0, 60 + barW * pct, 0);
-    barG.addColorStop(0, "#34d399");
-    barG.addColorStop(1, "#10b981");
+    barG.addColorStop(0, "#34d399"); barG.addColorStop(1, "#10b981");
     ctx.fillStyle = barG;
-    roundRect(ctx, 60, barY, Math.max(barW * pct, 12), 18, 9);
-    ctx.fill();
+    roundRect(ctx, 60, barY, Math.max(barW * pct, 12), 18, 9); ctx.fill();
   }
-  ctx.font = "16px Arial";
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.textAlign = "left";
+  ctx.font = "16px Arial"; ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.textAlign = "left";
   ctx.fillText(`WIN RATE: ${wr}%`, 60, barY - 8);
 
   ctx.fillStyle = "rgba(245,158,11,0.12)";
-  roundRect(ctx, 60, 720, barW, 80, 12);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(245,158,11,0.3)";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.font = "bold 22px Arial";
-  ctx.fillStyle = "#f59e0b";
-  ctx.textAlign = "center";
+  roundRect(ctx, 60, 720, barW, 80, 12); ctx.fill();
+  ctx.strokeStyle = "rgba(245,158,11,0.3)"; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.font = "bold 22px Arial"; ctx.fillStyle = "#f59e0b"; ctx.textAlign = "center";
   ctx.fillText(`Streak actuel: ${streak.current}   Meilleur streak: ${streak.best}`, W / 2, 768);
 
-  ctx.font = "12px Arial";
-  ctx.fillStyle = "rgba(129,140,248,0.3)";
-  ctx.textAlign = "center";
-  ctx.fillText("HEDGEHOG MORPION — ULTIMATE v16", W / 2, H - 14);
+  ctx.font = "12px Arial"; ctx.fillStyle = "rgba(129,140,248,0.3)"; ctx.textAlign = "center";
+  ctx.fillText("HEDGEHOG MORPION — ULTIMATE v17", W / 2, H - 14);
   return canvas.toBuffer("image/png");
 }
 
 function getTournamentStatus(t) {
-  return { registration: "INSCRIPTION", in_progress: "EN COURS", completed: "TERMINE" } [t.status] || "INCONNU";
+  return { registration: "INSCRIPTION", in_progress: "EN COURS", completed: "TERMINE" }[t.status] || "INCONNU";
 }
 
 async function sendImage(api, threadID, buffer, text = "") {
@@ -995,22 +807,17 @@ async function sendImage(api, threadID, buffer, text = "") {
   });
 }
 
-function findOnlineGame(uid) {
-  for (const [id, g] of onlineGames) {
-    if (g.uid === uid || g.partnerId === uid) return { id, game: g };
-  }
-  return null;
-}
-
 function findAnyActiveGame(uid) {
-  const active = Object.keys(games).find(id => games[id].players.some(p => p.id === uid) && games[id].inProgress);
+  const active = Object.keys(games).find(id =>
+    games[id].players.some(p => p.id === uid) && games[id].inProgress
+  );
   if (active) return { type: "active", gameID: active, game: games[active] };
   return null;
 }
 
-function notifySpectators(gameID, api, message, usersData) {
+function notifySpectators(gameID, api, usersData) {
   const list = spectators.get(gameID);
-  if (!list || !list.length) return;
+  if (!list?.length) return;
   const game = games[gameID];
   if (!game) return;
   for (const { uid, threadID } of list) {
@@ -1020,15 +827,34 @@ function notifySpectators(gameID, api, message, usersData) {
   }
 }
 
+async function sendToThread(api, threadID, game, body, usersData, asPlayerUID = null) {
+  if (game.imageMode) {
+    const playerForInfo = asPlayerUID
+      ? game.players.find(p => p.id === asPlayerUID) || game.players[game.currentPlayerIndex]
+      : game.players[game.currentPlayerIndex];
+    const img = await generateBoardImage(
+      game.board,
+      game.players[game.currentPlayerIndex],
+      game.players,
+      usersData,
+      game.isOnline ? "online" : game.isTournamentGame ? "tournament" : "normal",
+      game.bets, game.odds
+    );
+    if (img) await sendImage(api, threadID, img, body);
+  } else {
+    await api.sendMessage(`${body}\n${displayBoard(game.board)}\n${UI([`Tour: ${game.players[game.currentPlayerIndex].name}`])}`, threadID);
+  }
+}
+
 async function applyAIMove(gameID, api, usersData) {
   const game = games[gameID];
   if (!game?.inProgress || !game.isAI) return;
   const aiIdx = game.players.findIndex(p => p.id === "AI");
   if (aiIdx === -1 || game.currentPlayerIndex !== aiIdx) return;
-  const aiSym = game.players[aiIdx].symbol;
+  const aiSym    = game.players[aiIdx].symbol;
   const humanSym = game.players[1 - aiIdx].symbol;
-  const diff = game.aiDifficulty || aiDifficulty.get(game.players[1 - aiIdx].id) || "normal";
-  const pos = await aiMoveMistral(game.board, aiSym, humanSym, diff);
+  const diff     = game.aiDifficulty || aiDifficulty.get(game.players[1 - aiIdx].id) || "normal";
+  const pos      = await aiMoveMistral(game.board, aiSym, humanSym, diff);
   if (pos === null) return;
 
   game.board[pos] = aiSym;
@@ -1047,35 +873,30 @@ async function applyAIMove(gameID, api, usersData) {
   } else {
     await api.sendMessage(UI([displayBoard(game.board), "---", `Tour: ${next.name}`]), game.threadID);
   }
-  notifySpectators(gameID, api, null, usersData);
+  notifySpectators(gameID, api, usersData);
 }
 
 async function handleGameEnd(gameID, api, event, usersData) {
   const game = games[gameID];
   if (!game) return;
   const winnerSym = checkWinner(game.board);
-  const isDraw = isBoardFull(game.board) && !winnerSym;
-  const winLine = winnerSym ? getWinningLine(game.board) : null;
-  let gainInfo = null;
-
-  const duration = Math.floor((Date.now() - game.startTime) / 1000);
+  const isDraw    = isBoardFull(game.board) && !winnerSym;
+  const winLine   = winnerSym ? getWinningLine(game.board) : null;
+  let gainInfo    = null;
+  const duration  = Math.floor((Date.now() - game.startTime) / 1000);
 
   if (winnerSym) {
     const winner = game.players.find(p => p.symbol === winnerSym);
-    const loser = game.players.find(p => p.symbol !== winnerSym);
+    const loser  = game.players.find(p => p.symbol !== winnerSym);
 
-    ensurePlayerStats(winner.id);
-    ensurePlayerStats(loser.id);
-    playerStats[winner.id].wins++;
-    playerStats[winner.id].played++;
-    playerStats[loser.id].losses++;
-    playerStats[loser.id].played++;
-    updateStreak(winner.id, true);
-    updateStreak(loser.id, false);
+    ensurePlayerStats(winner.id); ensurePlayerStats(loser.id);
+    playerStats[winner.id].wins++;  playerStats[winner.id].played++;
+    playerStats[loser.id].losses++; playerStats[loser.id].played++;
+    updateStreak(winner.id, true); updateStreak(loser.id, false);
     saveStats();
 
     if (game.bets) {
-      const totalPot = toBigInt(game.bets[winner.id] || 0n) + toBigInt(game.bets[loser.id] || 0n);
+      const totalPot = Object.values(game.bets).reduce((s, b) => s + toBigInt(b), 0n);
       await updateUserCash(winner.id, totalPot);
       gainInfo = {
         line1: `${winner.name} gagne !`,
@@ -1084,19 +905,10 @@ async function handleGameEnd(gameID, api, event, usersData) {
       };
     }
 
-    addHistory({
-      players: game.players.map(p => p.id),
-      winner: winner.id,
-      isDraw: false,
-      isAI: game.isAI,
-      isOnline: game.isOnline || false,
-      bets: game.bets || null,
-      moves: game.moves.length,
-      duration
-    });
+    addHistory({ players: game.players.map(p => p.id), winner: winner.id, isDraw: false, isAI: game.isAI, isOnline: game.isOnline || false, bets: game.bets || null, moves: game.moves.length, duration });
 
-    const streak = playerStreaks[winner.id]?.current || 0;
-    const streakMsg = streak >= 3 ? ` | Streak ${streak}!` : "";
+    const streak    = playerStreaks[winner.id]?.current || 0;
+    const streakMsg = streak >= 3 ? ` | Streak ${streak} !` : "";
 
     if (game.imageMode) {
       const img = await generateEndGameImage(game.board, winner, game.players, usersData, false, gainInfo, winLine);
@@ -1107,9 +919,14 @@ async function handleGameEnd(gameID, api, event, usersData) {
       await api.sendMessage(txt, game.threadID);
     }
 
-    if (game.isOnline && game.partnerThreadId) {
+    if (game.isOnline && game.partnerThreadID) {
+      const partnerWon = winner.id !== game.players[0].id ? game.players[1].id : game.players[0].id;
       try {
-        await api.sendMessage(UI([`${winner.name} a gagné !`, `${loser.name} a perdu.`, gainInfo ? `💰 ${gainInfo.line2}` : ""]), game.partnerThreadId);
+        const partnerEndImg = game.imageMode
+          ? await generateEndGameImage(game.board, winner, game.players, usersData, false, gainInfo, winLine)
+          : null;
+        if (partnerEndImg) await sendImage(api, game.partnerThreadID, partnerEndImg, `${winner.name} gagne !${streakMsg}`);
+        else await api.sendMessage(UI([`${winner.name} a gagne !`, gainInfo ? gainInfo.line2 : ""]), game.partnerThreadID);
       } catch {}
     }
 
@@ -1121,12 +938,10 @@ async function handleGameEnd(gameID, api, event, usersData) {
       const T = tournaments[game.tournamentID];
       const round = T.rounds[T.currentRoundIndex];
       const match = round.matches[game.matchIndex];
-      if (match) { match.winner = winner.id;
-        match.completed = true; }
+      if (match) { match.winner = winner.id; match.completed = true; }
       const doneAll = round.matches.every(m => m.completed);
       if (doneAll) {
-        if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData);
-          await sendImage(api, game.threadID, bi); }
+        if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData); await sendImage(api, game.threadID, bi); }
         await advanceTournamentRound(game.tournamentID, api, usersData);
       } else await initiateNextMatch(game.tournamentID, api, usersData);
     } else {
@@ -1134,33 +949,18 @@ async function handleGameEnd(gameID, api, event, usersData) {
     }
 
   } else if (isDraw) {
-    game.players.forEach(p => { ensurePlayerStats(p.id);
-      playerStats[p.id].draws++;
-      playerStats[p.id].played++; });
+    game.players.forEach(p => { ensurePlayerStats(p.id); playerStats[p.id].draws++; playerStats[p.id].played++; });
     saveStats();
 
     if (game.bets && !game.isAI) {
-      for (const p of game.players) {
-        const b = toBigInt(game.bets[p.id] || 0n);
-        if (b > 0n) await updateUserCash(p.id, b);
-      }
-      gainInfo = { line1: "Match nul — mises remboursées", line2: "Chaque joueur récupère sa mise", line3: "" };
+      for (const pl of game.players) { const b = toBigInt(game.bets[pl.id] || 0n); if (b > 0n) await updateUserCash(pl.id, b); }
+      gainInfo = { line1: "Match nul — mises remboursees", line2: "Chaque joueur recupere sa mise", line3: "" };
     } else if (game.bets && game.isAI) {
       const humanId = game.players.find(p => p.id !== "AI")?.id;
-      if (humanId) { const b = toBigInt(game.bets[humanId] || 0n); if (b > 0n) await updateUserCash(humanId, b);
-        gainInfo = { line1: "Match nul contre l'IA — mise remboursée", line2: "", line3: "" }; }
+      if (humanId) { const b = toBigInt(game.bets[humanId] || 0n); if (b > 0n) await updateUserCash(humanId, b); gainInfo = { line1: "Match nul vs IA — mise remboursee", line2: "", line3: "" }; }
     }
 
-    addHistory({
-      players: game.players.map(p => p.id),
-      winner: null,
-      isDraw: true,
-      isAI: game.isAI,
-      isOnline: game.isOnline || false,
-      bets: game.bets || null,
-      moves: game.moves.length,
-      duration
-    });
+    addHistory({ players: game.players.map(p => p.id), winner: null, isDraw: true, isAI: game.isAI, isOnline: game.isOnline || false, bets: game.bets || null, moves: game.moves.length, duration });
 
     if (game.isTournamentGame && tournaments[game.tournamentID]) {
       const T = tournaments[game.tournamentID];
@@ -1168,148 +968,112 @@ async function handleGameEnd(gameID, api, event, usersData) {
       const match = round.matches[game.matchIndex];
       match.drawCount = (match.drawCount || 0) + 1;
       if (match.drawCount >= 3) {
-        game.inProgress = true;
-        game.isMathChallenge = true;
-        await api.sendMessage(UI(["3 MATCHS NULS !", "ÉPREUVE DE MATHS", "---", "Résoudre: sqrt(7+sqrt(48))^2024 * sqrt(7-sqrt(48))^2024 + 1", "---", "Première bonne réponse gagne !"]), game.threadID);
+        game.inProgress = true; game.isMathChallenge = true;
+        await api.sendMessage(UI(["3 MATCHS NULS !", "EPREUVE DE MATHS", "---", "Resoudre: sqrt(7+sqrt(48))^2024 * sqrt(7-sqrt(48))^2024 + 1", "---", "Premiere bonne reponse gagne !"]), game.threadID);
       } else {
         await api.sendMessage(UI([`MATCH NUL (${match.drawCount}/3)`, "Revanche !"]), game.threadID);
-        resetGame(gameID, game.players[0], game.players[1], {
-          isTournamentGame: true,
-          tournamentID: game.tournamentID,
-          matchIndex: game.matchIndex,
-          threadID: game.threadID,
-          imageMode: game.imageMode
-        });
+        resetGame(gameID, game.players[0], game.players[1], { isTournamentGame: true, tournamentID: game.tournamentID, matchIndex: game.matchIndex, threadID: game.threadID, imageMode: game.imageMode });
         if (game.imageMode) {
           const bi = await generateBoardImage(games[gameID].board, games[gameID].players[0], games[gameID].players, usersData, "tournament");
-          await sendImage(api, game.threadID, bi, `Revanche ! ${games[gameID].players[0].name}, à toi !`);
+          await sendImage(api, game.threadID, bi, `Revanche ! ${games[gameID].players[0].name}, a toi !`);
         } else {
-          await api.sendMessage(`Revanche ! ${games[gameID].players[0].name}, à toi !`, game.threadID);
+          await api.sendMessage(`Revanche ! ${games[gameID].players[0].name}, a toi !`, game.threadID);
         }
       }
     } else {
       if (game.imageMode) {
         const img = await generateEndGameImage(game.board, null, game.players, usersData, true, gainInfo);
-        if (img) await sendImage(api, game.threadID, img);
+        if (img) {
+          await sendImage(api, game.threadID, img);
+          if (game.isOnline && game.partnerThreadID) {
+            try { await sendImage(api, game.partnerThreadID, img, "Match nul !"); } catch {}
+          }
+        }
       } else {
         let txt = UI([displayBoard(game.board), "---", "Match nul !"]);
         if (gainInfo) txt += `\n${gainInfo.line1}`;
         await api.sendMessage(txt, game.threadID);
+        if (game.isOnline && game.partnerThreadID) {
+          try { await api.sendMessage(txt, game.partnerThreadID); } catch {}
+        }
       }
       game.inProgress = false;
       spectators.delete(gameID);
-      await api.sendMessage(`Tape "rematch" pour une revanche ou "restart" pour rejouer.`, game.threadID);
+      await api.sendMessage(`Tape "rematch" ou "restart" pour rejouer.`, game.threadID);
     }
   }
   game.restartPrompted = true;
 }
 
 function createTournament(threadID) {
-  tournaments[threadID] = {
-    id: threadID,
-    players: [],
-    status: "registration",
-    rounds: [],
-    currentRoundIndex: -1,
-    winner: null,
-    threadID,
-    requiredPlayers: 4,
-    imageMode: imageModeByThread[threadID] || false
-  };
+  tournaments[threadID] = { id: threadID, players: [], status: "registration", rounds: [], currentRoundIndex: -1, winner: null, threadID, requiredPlayers: 4, imageMode: imageModeByThread[threadID] || false };
   return tournaments[threadID];
 }
 
 async function generateTournamentBracketImage(tournament, usersData) {
-  const W = 2000,
-    H = 1600;
+  const W = 2000, H = 1600;
   const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext("2d");
+  const ctx    = canvas.getContext("2d");
 
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, "#07050f");
-  bg.addColorStop(1, "#0f0d20");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  bg.addColorStop(0, "#07050f"); bg.addColorStop(1, "#0f0d20");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "rgba(255,255,255,0.018)";
-  for (let x = 0; x < W; x += 34)
-    for (let y = 0; y < H; y += 34) ctx.fillRect(x, y, 1.5, 1.5);
+  for (let x = 0; x < W; x += 34) for (let y = 0; y < H; y += 34) ctx.fillRect(x, y, 1.5, 1.5);
 
-  ctx.font = "bold 64px Arial";
-  ctx.fillStyle = "#fbbf24";
-  ctx.textAlign = "center";
-  ctx.shadowColor = "#fbbf24";
-  ctx.shadowBlur = 28;
-  ctx.fillText("TOURNOI ELITE — TABLEAU", W / 2, 90);
-  ctx.shadowBlur = 0;
-  ctx.font = "bold 32px Arial";
-  ctx.fillStyle = "#e0e7ff";
+  ctx.font = "bold 64px Arial"; ctx.fillStyle = "#fbbf24"; ctx.textAlign = "center";
+  ctx.shadowColor = "#fbbf24"; ctx.shadowBlur = 28;
+  ctx.fillText("TOURNOI ELITE — TABLEAU", W / 2, 90); ctx.shadowBlur = 0;
+  ctx.font = "bold 32px Arial"; ctx.fillStyle = "#e0e7ff";
   ctx.fillText(`Statut: ${getTournamentStatus(tournament)}`, W / 2, 148);
 
   if (tournament.status === "registration") {
-    ctx.font = "bold 52px Arial";
-    ctx.fillStyle = "#818cf8";
+    ctx.font = "bold 52px Arial"; ctx.fillStyle = "#818cf8";
     ctx.fillText("EN ATTENTE DES JOUEURS", W / 2, H / 2 - 100);
-    ctx.font = "bold 38px Arial";
-    ctx.fillStyle = "#9ca3af";
+    ctx.font = "bold 38px Arial"; ctx.fillStyle = "#9ca3af";
     ctx.fillText(`Inscrits: ${tournament.players.length} / ${tournament.requiredPlayers}`, W / 2, H / 2);
-    let yList = H / 2 + 80;
-    ctx.font = "28px Arial";
-    ctx.fillStyle = "#e0e7ff";
-    tournament.players.forEach((p, i) => ctx.fillText(`${i + 1}. ${p.name}`, W / 2, yList + i * 44));
+    let yList = H / 2 + 80; ctx.font = "28px Arial"; ctx.fillStyle = "#e0e7ff";
+    tournament.players.forEach((p, i) => ctx.fillText(`${i+1}. ${p.name}`, W / 2, yList + i * 44));
     return canvas.toBuffer("image/png");
   }
 
   const roundCount = tournament.rounds.length;
-  const colW = (W - 200) / roundCount;
-  const positions = {};
+  const colW       = (W - 200) / roundCount;
+  const positions  = {};
 
   for (let r = 0; r < roundCount; r++) {
     const round = tournament.rounds[r];
-    const x = 100 + r * colW;
-    ctx.font = "bold 34px Arial";
-    ctx.fillStyle = r === tournament.currentRoundIndex ? "#fbbf24" : "#818cf8";
-    ctx.textAlign = "center";
-    ctx.fillText(round.name.toUpperCase(), x + 150, 220);
+    const x     = 100 + r * colW;
+    ctx.font = "bold 34px Arial"; ctx.fillStyle = r === tournament.currentRoundIndex ? "#fbbf24" : "#818cf8";
+    ctx.textAlign = "center"; ctx.fillText(round.name.toUpperCase(), x + 150, 220);
     positions[r] = [];
     for (let m = 0; m < round.matches.length; m++) {
       const match = round.matches[m];
       let y;
-      if (r === 0) { const spacing = (H - 340) / round.matches.length;
-        y = 340 + m * spacing + spacing / 2 - 55; } else { const p1 = positions[r - 1][m * 2],
-          p2 = positions[r - 1][m * 2 + 1];
-        y = (p1 && p2) ? (p1.y + p2.y) / 2 : 340 + m * 200; }
+      if (r === 0) { const spacing = (H - 340) / round.matches.length; y = 340 + m * spacing + spacing / 2 - 55; }
+      else { const p1 = positions[r-1][m*2], p2 = positions[r-1][m*2+1]; y = (p1 && p2) ? (p1.y + p2.y) / 2 : 340 + m * 200; }
       positions[r].push({ x, y });
       const p1 = tournament.players.find(p => p.id === match.player1);
       const p2 = tournament.players.find(p => p.id === match.player2);
-      const bW = 300,
-        bH = 110;
+      const bW = 300, bH = 110;
       if (r > 0) {
-        const pa1 = positions[r - 1][m * 2],
-          pa2 = positions[r - 1][m * 2 + 1];
-        ctx.strokeStyle = "#818cf8";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        if (pa1) { ctx.moveTo(pa1.x + bW, pa1.y + bH / 2);
-          ctx.lineTo(x, y + bH / 2); }
-        if (pa2) { ctx.moveTo(pa2.x + bW, pa2.y + bH / 2);
-          ctx.lineTo(x, y + bH / 2); }
+        const pa1 = positions[r-1][m*2], pa2 = positions[r-1][m*2+1];
+        ctx.strokeStyle = "#818cf8"; ctx.lineWidth = 2; ctx.beginPath();
+        if (pa1) { ctx.moveTo(pa1.x + bW, pa1.y + bH/2); ctx.lineTo(x, y + bH/2); }
+        if (pa2) { ctx.moveTo(pa2.x + bW, pa2.y + bH/2); ctx.lineTo(x, y + bH/2); }
         ctx.stroke();
       }
       ctx.fillStyle = match.completed ? "rgba(16,18,45,0.9)" : "rgba(20,18,50,0.8)";
-      roundRect(ctx, x, y, bW, bH, 12);
-      ctx.fill();
+      roundRect(ctx, x, y, bW, bH, 12); ctx.fill();
       ctx.strokeStyle = match.completed ? (match.winner ? "#34d399" : "#fbbf24") : "#818cf8";
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.font = "bold 22px Arial";
-      ctx.textAlign = "left";
+      ctx.lineWidth = 3; ctx.stroke();
+      ctx.font = "bold 22px Arial"; ctx.textAlign = "left";
       ctx.fillStyle = match.winner === match.player1 ? "#34d399" : "#e0e7ff";
       ctx.fillText((p1?.name || "???").substring(0, 14), x + 14, y + 38);
       ctx.fillStyle = match.winner === match.player2 ? "#34d399" : "#e0e7ff";
       ctx.fillText((p2?.name || "???").substring(0, 14), x + 14, y + 82);
       if (match.completed && match.winner) {
-        ctx.font = "22px Arial";
-        ctx.fillStyle = "#fbbf24";
+        ctx.font = "22px Arial"; ctx.fillStyle = "#fbbf24";
         ctx.fillText("GAGNANT", x + 240, match.winner === match.player1 ? y + 38 : y + 82);
       }
     }
@@ -1317,64 +1081,49 @@ async function generateTournamentBracketImage(tournament, usersData) {
 
   if (tournament.winner) {
     const w = tournament.players.find(p => p.id === tournament.winner);
-    ctx.font = "bold 64px Arial";
-    ctx.fillStyle = "#fbbf24";
-    ctx.textAlign = "center";
-    ctx.shadowColor = "#fbbf24";
-    ctx.shadowBlur = 36;
-    ctx.fillText(`CHAMPION: ${w?.name || "Champion"}`, W / 2, H - 80);
-    ctx.shadowBlur = 0;
+    ctx.font = "bold 64px Arial"; ctx.fillStyle = "#fbbf24"; ctx.textAlign = "center";
+    ctx.shadowColor = "#fbbf24"; ctx.shadowBlur = 36;
+    ctx.fillText(`CHAMPION: ${w?.name || "Champion"}`, W / 2, H - 80); ctx.shadowBlur = 0;
   }
   return canvas.toBuffer("image/png");
 }
 
 function generateTournamentBracketText(T) {
   let t = UI([`TOURNOI TICTACTOE`, "---", `Statut: ${getTournamentStatus(T)}`, `Joueurs: ${T.players.length}/${T.requiredPlayers}`]);
-  T.players.forEach((p, i) => { t += `\n│ ${i + 1}. ${p.name}`; });
+  T.players.forEach((p, i) => { t += `\n│ ${i+1}. ${p.name}`; });
   if (T.status !== "registration" && T.rounds.length > 0) {
     t += `\n├─────────────────────•\n│ Rounds:`;
-    T.rounds.forEach(r => { t += `\n│   ${r.name}: ${r.matches.filter(m => m.completed).length}/${r.matches.length}`; });
+    T.rounds.forEach(r => { t += `\n│   ${r.name}: ${r.matches.filter(m=>m.completed).length}/${r.matches.length}`; });
     const cr = T.rounds[T.currentRoundIndex];
     if (cr) {
       t += `\n├─────────────────────•\n│ En cours: ${cr.name}`;
       cr.matches.forEach((m, i) => {
-        const p1 = T.players.find(p => p.id === m.player1),
-          p2 = T.players.find(p => p.id === m.player2);
-        const s = m.completed ? (m.winner ? `GAGNANT ${T.players.find(p => p.id === m.winner)?.name}` : "NUL") : "EN ATTENTE";
-        t += `\n│ Match ${i + 1}: ${p1?.name || "??"} vs ${p2?.name || "??"} → ${s}`;
+        const p1 = T.players.find(p => p.id === m.player1), p2 = T.players.find(p => p.id === m.player2);
+        const s  = m.completed ? (m.winner ? `GAGNANT ${T.players.find(p => p.id === m.winner)?.name}` : "NUL") : "EN ATTENTE";
+        t += `\n│ Match ${i+1}: ${p1?.name||"??"} vs ${p2?.name||"??"} → ${s}`;
       });
     }
   }
-  if (T.status === "completed" && T.winner) t += `\n├─────────────────────•\n│ CHAMPION: ${T.players.find(p => p.id === T.winner)?.name || "?"}`;
+  if (T.status === "completed" && T.winner) t += `\n├─────────────────────•\n│ CHAMPION: ${T.players.find(p => p.id === T.winner)?.name||"?"}`;
   return t + "\n╰─────────────────────•";
 }
 
 async function startTournament(tournamentID, api, usersData) {
-  const T = tournaments[tournamentID];
+  const T   = tournaments[tournamentID];
   if (!T) return;
   const num = T.players.length;
-  if (![4, 8, 16].includes(num)) return api.sendMessage(UI([`Il faut 4, 8 ou 16 joueurs. Actuel: ${num}`]), T.threadID);
-  T.status = "in_progress";
-  shuffleArray(T.players);
+  if (![4,8,16].includes(num)) return api.sendMessage(UI([`Il faut 4, 8 ou 16 joueurs. Actuel: ${num}`]), T.threadID);
+  T.status = "in_progress"; shuffleArray(T.players);
   let rounds = [];
-  if (num === 16) rounds = [{ name: "Huitièmes", matches: [] }, { name: "Quarts", matches: [] }, { name: "Demi-finales", matches: [] }, { name: "Finale", matches: [] }];
-  else if (num === 8) rounds = [{ name: "Quarts", matches: [] }, { name: "Demi-finales", matches: [] }, { name: "Finale", matches: [] }];
-  else rounds = [{ name: "Demi-finales", matches: [] }, { name: "Finale", matches: [] }];
-  T.rounds = rounds;
-  T.currentRoundIndex = 0;
-  T.winner = null;
+  if (num === 16) rounds = [{ name:"Huitiemes",matches:[] },{ name:"Quarts",matches:[] },{ name:"Demi-finales",matches:[] },{ name:"Finale",matches:[] }];
+  else if (num === 8) rounds = [{ name:"Quarts",matches:[] },{ name:"Demi-finales",matches:[] },{ name:"Finale",matches:[] }];
+  else rounds = [{ name:"Demi-finales",matches:[] },{ name:"Finale",matches:[] }];
+  T.rounds = rounds; T.currentRoundIndex = 0; T.winner = null;
   const m0 = [];
-  for (let i = 0; i < num; i += 2) m0.push({
-    player1: T.players[i].id,
-    player2: T.players[i + 1].id,
-    winner: null,
-    completed: false,
-    gameID: null,
-    drawCount: 0
-  });
+  for (let i = 0; i < num; i += 2) m0.push({ player1:T.players[i].id, player2:T.players[i+1].id, winner:null, completed:false, gameID:null, drawCount:0 });
   T.rounds[0].matches = m0;
-  if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData);
-    await sendImage(api, T.threadID, bi, UI(["Le tournoi commence !"])); } else await api.sendMessage(generateTournamentBracketText(T), T.threadID);
+  if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData); await sendImage(api, T.threadID, bi, UI(["Le tournoi commence !"])); }
+  else await api.sendMessage(generateTournamentBracketText(T), T.threadID);
   await initiateNextMatch(tournamentID, api, usersData);
 }
 
@@ -1382,84 +1131,76 @@ async function initiateNextMatch(tournamentID, api, usersData) {
   const T = tournaments[tournamentID];
   if (!T) return;
   const round = T.rounds[T.currentRoundIndex];
-  const idx = round.matches.findIndex(m => !m.completed && m.gameID === null);
+  const idx   = round.matches.findIndex(m => !m.completed && m.gameID === null);
   if (idx === -1) return;
   const match = round.matches[idx];
-  const p1 = T.players.find(p => p.id === match.player1);
-  const p2 = T.players.find(p => p.id === match.player2);
+  const p1    = T.players.find(p => p.id === match.player1);
+  const p2    = T.players.find(p => p.id === match.player2);
   if (!p1 || !p2) { await api.sendMessage("Joueur introuvable.", T.threadID); return; }
-  const i1 = await getPlayerInfo(p1.id, usersData);
-  const i2 = await getPlayerInfo(p2.id, usersData);
+  const i1  = await getPlayerInfo(p1.id, usersData);
+  const i2  = await getPlayerInfo(p2.id, usersData);
   const gID = `${T.threadID}:tournament:${T.id}:${T.currentRoundIndex}:${idx}`;
-  resetGame(gID, { id: p1.id, name: i1.name, threadID: T.threadID }, { id: p2.id, name: i2.name, threadID: T.threadID }, {
-    isTournamentGame: true,
-    tournamentID,
-    matchIndex: idx,
-    threadID: T.threadID,
-    imageMode: T.imageMode
-  });
+  resetGame(gID, { id:p1.id, name:i1.name, threadID:T.threadID }, { id:p2.id, name:i2.name, threadID:T.threadID },
+    { isTournamentGame:true, tournamentID, matchIndex:idx, threadID:T.threadID, imageMode:T.imageMode });
   round.matches[idx].gameID = gID;
   if (T.imageMode) {
     const bi = await generateBoardImage(games[gID].board, games[gID].players[0], games[gID].players, usersData, "tournament");
-    await sendImage(api, T.threadID, bi, UI([`${round.name} — Match ${idx + 1}`, `${i1.name} vs ${i2.name}`]));
+    await sendImage(api, T.threadID, bi, UI([`${round.name} — Match ${idx+1}`, `${i1.name} vs ${i2.name}`]));
   } else {
-    await api.sendMessage(UI([`${round.name} — Match ${idx + 1}`, `${i1.name} (X) vs ${i2.name} (O)`, "---", displayBoard(games[gID].board), "---", `${i1.name}, à toi (1-9).`]), T.threadID);
+    await api.sendMessage(UI([`${round.name} — Match ${idx+1}`, `${i1.name} (X) vs ${i2.name} (O)`, "---", displayBoard(games[gID].board), "---", `${i1.name}, a toi (1-9).`]), T.threadID);
   }
 }
 
 async function advanceTournamentRound(tournamentID, api, usersData) {
   const T = tournaments[tournamentID];
   if (!T) return;
-  const round = T.rounds[T.currentRoundIndex];
+  const round   = T.rounds[T.currentRoundIndex];
   const winners = round.matches.map(m => m.winner).filter(Boolean);
   if (winners.length !== round.matches.length) { await api.sendMessage("Des matchs sont encore en cours.", T.threadID); return; }
   if (T.currentRoundIndex === T.rounds.length - 1) {
-    T.winner = winners[0];
-    T.status = "completed";
+    T.winner = winners[0]; T.status = "completed";
     const ci = await getPlayerInfo(T.winner, usersData);
-    if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData);
-      await sendImage(api, T.threadID, bi, UI(["TOURNOI TERMINE !", "---", `CHAMPION: ${ci.name}`])); } else await api.sendMessage(UI(["TOURNOI TERMINE !", "---", `CHAMPION: ${ci.name}`]), T.threadID);
-    delete tournaments[tournamentID];
-    return;
+    if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData); await sendImage(api, T.threadID, bi, UI(["TOURNOI TERMINE !", "---", `CHAMPION: ${ci.name}`])); }
+    else await api.sendMessage(UI(["TOURNOI TERMINE !", "---", `CHAMPION: ${ci.name}`]), T.threadID);
+    delete tournaments[tournamentID]; return;
   }
   T.currentRoundIndex++;
   const nr = T.rounds[T.currentRoundIndex];
   nr.matches = [];
   for (let i = 0; i < winners.length; i += 2)
-    nr.matches.push({ player1: winners[i], player2: winners[i + 1], winner: null, completed: false, gameID: null, drawCount: 0 });
-  if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData);
-    await sendImage(api, T.threadID, bi, `Round ${nr.name.toUpperCase()} !`); } else await api.sendMessage(`Round ${nr.name.toUpperCase()} !`, T.threadID);
+    nr.matches.push({ player1:winners[i], player2:winners[i+1], winner:null, completed:false, gameID:null, drawCount:0 });
+  if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData); await sendImage(api, T.threadID, bi, `Round ${nr.name.toUpperCase()} !`); }
+  else await api.sendMessage(`Round ${nr.name.toUpperCase()} !`, T.threadID);
   await initiateNextMatch(tournamentID, api, usersData);
 }
 
 module.exports = {
   config: {
-    name: "tictactoe",
-    aliases: ["ttt", "morpion"],
-    version: "16.0",
-    author: "Ismael03-Dev",
-    category: "game",
-    shortDescription: { en: "TicTacToe Ultimate v16 — AI levels, streaks, online with bets" }
+    name:             "tictactoe",
+    aliases:          ["ttt", "morpion"],
+    version:          "17.0",
+    author:           "Ismael03-Dev",
+    category:         "game",
+    shortDescription: { en: "TicTacToe Ultimate v17 — bugs online fixes, emojis, avatars, streaks" }
   },
 
   onStart: async function ({ api, event, args, usersData }) {
     const threadID = event.threadID;
     const senderID = event.senderID;
-    const p = global.utils.getPrefix(threadID);
+    const p        = global.utils.getPrefix(threadID);
     ensurePlayerStats(senderID);
 
-    const sub = (args[0] || "").toLowerCase();
+    const sub  = (args[0] || "").toLowerCase();
     const sub2 = (args[1] || "").toLowerCase();
 
     if (!sub || sub === "help") return api.sendMessage(UI([
-      "ULTIMATE TICTACTOE v16", "---",
+      "ULTIMATE TICTACTOE v17", "---",
       `${p}ttt @joueur <mise> [cote]`,
       `${p}ttt ai <mise> [cote] [diff]`,
       `${p}ttt online <user_id> <group_id> <mise>`,
       "---",
       "AI diff: facile/normal/impossible",
-      "Cote: 1-20 | Match nul: remboursé",
-      "Online: mise obligatoire pour les deux",
+      "Cote: 1-20 | Match nul: rembourse",
       "---",
       `${p}ttt stats`,
       `${p}ttt history`,
@@ -1482,24 +1223,22 @@ module.exports = {
 
     if (sub === "aidiff") {
       const diff = sub2;
-      if (!["facile", "normal", "impossible"].includes(diff))
+      if (!["facile","normal","impossible"].includes(diff))
         return api.sendMessage(UI(["Valide: facile / normal / impossible"]), threadID);
       aiDifficulty.set(senderID, diff);
-      return api.sendMessage(UI([`Difficulté IA réglée sur: ${diff}`]), threadID);
+      return api.sendMessage(UI([`Difficulte IA: ${diff}`]), threadID);
     }
 
     if (sub === "games") {
-      const active = Object.entries(games).filter(([, g]) => g.inProgress);
+      const active = Object.entries(games).filter(([,g]) => g.inProgress);
       if (!active.length) return api.sendMessage(UI(["Aucune partie active."]), threadID);
       const lines = ["Parties actives", "---"];
       for (const [id, g] of active) {
-        const p1 = g.players[0].name,
-          p2 = g.players[1].name;
-        const cur = g.players[g.currentPlayerIndex].name;
-        const mode = g.isOnline ? "🌐" : g.isAI ? "🤖" : "👥";
+        const p1 = g.players[0].name, p2 = g.players[1].name;
+        const cur  = g.players[g.currentPlayerIndex].name;
+        const mode = g.isOnline ? "[Online]" : g.isAI ? "[IA]" : "[PvP]";
         lines.push(`${mode} ${p1} vs ${p2} — Tour: ${cur}`);
-        lines.push(`ID: ${id}`);
-        lines.push("---");
+        lines.push(`ID: ${id}`); lines.push("---");
       }
       return api.sendMessage(UI(lines), threadID);
     }
@@ -1507,11 +1246,11 @@ module.exports = {
     if (sub === "spectate") {
       const gameID = args[1];
       if (!gameID || !games[gameID] || !games[gameID].inProgress)
-        return api.sendMessage(UI(["Partie introuvable.", `Utilise ${p}ttt games pour voir les parties actives.`]), threadID);
+        return api.sendMessage(UI(["Partie introuvable.", `Utilise ${p}ttt games`]), threadID);
       const game = games[gameID];
       if (!spectators.has(gameID)) spectators.set(gameID, []);
       const list = spectators.get(gameID);
-      if (list.find(s => s.uid === senderID)) return api.sendMessage(UI(["Tu regardes déjà."]), threadID);
+      if (list.find(s => s.uid === senderID)) return api.sendMessage(UI(["Tu regardes deja."]), threadID);
       list.push({ uid: senderID, threadID });
       if (game.imageMode) {
         const img = await generateBoardImage(game.board, game.players[game.currentPlayerIndex], game.players, usersData, "normal", game.bets, game.odds);
@@ -1527,11 +1266,11 @@ module.exports = {
       if (!userHistory.length) return api.sendMessage(UI(["Aucun historique."]), threadID);
       const lines = ["HISTORIQUE", "---"];
       for (const h of userHistory) {
-        const date = new Date(h.timestamp).toLocaleDateString("fr-FR");
-        const result = h.isDraw ? "Nul" : h.winner === senderID ? "Gagné" : "Perdu";
-        const mode = h.isOnline ? "🌐 Online" : h.isAI ? "🤖 IA" : "👥 PvP";
-        const moves = h.moves ? ` | ${h.moves} coups` : "";
-        const dur = h.duration ? ` | ${h.duration}s` : "";
+        const date   = new Date(h.timestamp).toLocaleDateString("fr-FR");
+        const result = h.isDraw ? "Nul" : h.winner === senderID ? "Gagne" : "Perdu";
+        const mode   = h.isOnline ? "[Online]" : h.isAI ? "[IA]" : "[PvP]";
+        const moves  = h.moves ? ` | ${h.moves} coups` : "";
+        const dur    = h.duration ? ` | ${h.duration}s` : "";
         lines.push(`${mode} | ${result}${moves}${dur} | ${date}`);
       }
       return api.sendMessage(UI(lines), threadID);
@@ -1543,15 +1282,15 @@ module.exports = {
         .sort((a, b) => b[1].wins - a[1].wins)
         .slice(0, 10);
       if (!sorted.length) return api.sendMessage(UI(["Aucun joueur."]), threadID);
-      const lines = ["CLASSEMENT", "---"];
+      const lines  = ["CLASSEMENT", "---"];
       const medals = ["1.", "2.", "3."];
       for (let i = 0; i < sorted.length; i++) {
         const [id, st] = sorted[i];
-        const name = (await usersData.getName(id)) || `Player ${id}`;
-        const wr = st.played > 0 ? Math.round(st.wins / st.played * 100) : 0;
+        const name   = (await usersData.getName(id)) || `Player ${id}`;
+        const wr     = st.played > 0 ? Math.round(st.wins / st.played * 100) : 0;
         const streak = playerStreaks[id]?.best || 0;
-        lines.push(`${medals[i] || `${i + 1}.`} ${name}`);
-        lines.push(`   ${st.wins}V/${st.losses}D/${st.draws}N | ${wr}% | Meilleur streak ${streak}`);
+        lines.push(`${medals[i] || `${i+1}.`} ${name}`);
+        lines.push(`   ${st.wins}V/${st.losses}D/${st.draws}N | ${wr}% | Best streak ${streak}`);
         lines.push("---");
       }
       return api.sendMessage(UI(lines), threadID);
@@ -1562,14 +1301,14 @@ module.exports = {
         const img = await generateStatsImage(senderID, usersData);
         if (img) { await sendImage(api, threadID, img); return; }
       }
-      const stats = playerStats[senderID] || { wins: 0, losses: 0, draws: 0, played: 0 };
-      const name = (await usersData.getName(senderID)) || `Player ${senderID}`;
-      const wr = stats.played > 0 ? Math.round(stats.wins / stats.played * 100) : 0;
-      const streak = playerStreaks[senderID] || { current: 0, best: 0 };
+      const stats  = playerStats[senderID] || { wins:0, losses:0, draws:0, played:0 };
+      const name   = (await usersData.getName(senderID)) || `Player ${senderID}`;
+      const wr     = stats.played > 0 ? Math.round(stats.wins / stats.played * 100) : 0;
+      const streak = playerStreaks[senderID] || { current:0, best:0 };
       return api.sendMessage(UI([
         `${name} — Stats`, "---",
         `Victoires: ${stats.wins}`,
-        `Défaites: ${stats.losses}`,
+        `Defaites: ${stats.losses}`,
         `Nuls: ${stats.draws}`,
         `Parties: ${stats.played}`,
         `Winrate: ${wr}%`,
@@ -1579,125 +1318,115 @@ module.exports = {
     }
 
     if (sub === "online" || sub === "cross") {
-      const targetId = args[1];
+      const targetId       = args[1];
       const targetThreadId = args[2];
-      const betRaw = args[3] || "0";
-      const betAmt = await parseAmount(betRaw);
+      const betRaw         = args[3] || "0";
+      const betAmt         = await parseAmount(betRaw);
 
       if (!targetId || !targetThreadId) {
         return api.sendMessage(UI([
-          "🌐 MODE ONLINE", "---",
+          "MODE ONLINE", "---",
           `${p}ttt online <user_id> <group_id> <mise>`,
           "Joue avec mise obligatoire !",
-          "Le gagnant remporte toute la mise"
+          "Le gagnant remporte tout le pot"
         ]), threadID);
       }
 
-      if (betAmt <= 0n) return api.sendMessage(UI(["❌ Mise invalide. Mise minimum: 1$"]), threadID);
-      if (targetId === senderID) return api.sendMessage(UI(["Tu ne peux pas jouer contre toi-même."]), threadID);
-      if (targetThreadId === threadID) return api.sendMessage(UI(["Le mode online est pour les groupes différents !", `Utilise ${p}ttt @joueur pour le même groupe.`]), threadID);
+      if (betAmt <= 0n) return api.sendMessage(UI(["Mise invalide. Minimum: 1$"]), threadID);
+      if (targetId === senderID) return api.sendMessage(UI(["Tu ne peux pas jouer contre toi-meme."]), threadID);
+      if (targetThreadId === threadID) return api.sendMessage(UI(["Le mode online est pour groupes differents !", `Utilise ${p}ttt @joueur pour meme groupe.`]), threadID);
 
       const cash = await getUserCash(senderID);
-      if (betAmt > cash) return api.sendMessage(UI(["💰 Fonds insuffisants", "---", `Solde: ${await formatNumber(cash)}$`, `Mise: ${await formatNumber(betAmt)}$`]), threadID);
+      if (betAmt > cash) return api.sendMessage(UI(["Fonds insuffisants", "---", `Solde: ${await formatNumber(cash)}$`, `Mise: ${await formatNumber(betAmt)}$`]), threadID);
 
-      if (findAnyActiveGame(targetId)) return api.sendMessage(UI(["Ce joueur est déjà en jeu."]), threadID);
-      if (findAnyActiveGame(senderID)) return api.sendMessage(UI(["Tu as déjà une partie en cours."]), threadID);
+      if (findAnyActiveGame(targetId)) return api.sendMessage(UI(["Ce joueur est deja en jeu."]), threadID);
+      if (findAnyActiveGame(senderID)) return api.sendMessage(UI(["Tu as deja une partie en cours."]), threadID);
       for (const [, inv] of onlineInvites) {
-        if (inv.targetId === targetId) return api.sendMessage(UI(["Ce joueur a déjà une invitation en attente."]), threadID);
-        if (inv.uid === senderID) return api.sendMessage(UI(["Tu as déjà une invitation en attente."]), threadID);
+        if (inv.targetId === targetId) return api.sendMessage(UI(["Ce joueur a deja une invitation."]), threadID);
+        if (inv.uid === senderID) return api.sendMessage(UI(["Tu as deja une invitation en attente."]), threadID);
       }
 
       const inviterName = (await usersData.getName(senderID)) || `Player ${senderID}`;
-      const targetName = (await usersData.getName(targetId)) || `Player ${targetId}`;
-      const inviteId = `invite_${senderID}_${Date.now()}`;
+      const targetName  = (await usersData.getName(targetId))  || `Player ${targetId}`;
+      const inviteId    = `invite_${senderID}_${Date.now()}`;
 
-      onlineInvites.set(inviteId, {
-        uid: senderID,
-        targetId,
-        targetThreadId,
-        threadId: threadID,
-        inviterName,
-        targetName,
-        bet: betAmt.toString(),
-        timestamp: Date.now()
-      });
+      onlineInvites.set(inviteId, { uid:senderID, targetId, targetThreadId, threadId:threadID, inviterName, targetName, bet:betAmt.toString(), timestamp:Date.now() });
 
       try {
         await api.sendMessage(
           UI([
-            `${inviterName} veut jouer au TicTacToe avec toi !`,
+            `${inviterName} veut jouer au TicTacToe avec ${targetName} !`,
             "---",
-            `💰 Mise: ${await formatNumber(betAmt)}$ chacun`,
-            `🏆 Le gagnant remporte ${await formatNumber(betAmt * 2n)}$`,
+            `Cette invitation est destinee a : ${targetName}`,
+            `Mise: ${await formatNumber(betAmt)}$ chacun`,
+            `Pot total: ${await formatNumber(betAmt * 2n)}$`,
             "---",
-            `${targetName}, réponds "oui" pour accepter ou "non" pour refuser.`,
-            "(Expire dans 60s — cette invitation est uniquement pour toi)"
+            `${targetName}, reponds "oui" pour accepter ou "non" pour refuser.`,
+            "(Expire dans 60s)"
           ]),
           targetThreadId
         );
       } catch {
         onlineInvites.delete(inviteId);
-        return api.sendMessage(UI(["❌ Impossible d'envoyer l'invitation.", "Vérifie l'ID du groupe et que le bot y est présent."]), threadID);
+        return api.sendMessage(UI(["Impossible d'envoyer l'invitation.", "Verifie l'ID du groupe."]), threadID);
       }
 
       const to = setTimeout(() => {
         if (onlineInvites.has(inviteId)) {
           onlineInvites.delete(inviteId);
-          api.sendMessage(UI(["⏰ Invitation expirée (aucune réponse)."]), threadID);
+          api.sendMessage(UI(["Invitation expiree (aucune reponse)."]), threadID);
         }
         inviteTimeouts.delete(inviteId);
       }, 60000);
       inviteTimeouts.set(inviteId, to);
 
       return api.sendMessage(UI([
-        "✅ Invitation envoyée !",
-        "---",
-        `À: ${targetName}`,
-        `💰 Mise: ${await formatNumber(betAmt)}$`,
-        "En attente de réponse (60s)..."
+        "Invitation envoyee !", "---",
+        `A: ${targetName}`,
+        `Mise: ${await formatNumber(betAmt)}$`,
+        "En attente de reponse (60s)..."
       ]), threadID);
     }
 
-    if (["tournoi", "join", "out"].includes(sub)) {
+    if (["tournoi","join","out"].includes(sub)) {
       if (!tournaments[threadID]) createTournament(threadID);
       const T = tournaments[threadID];
 
       if (sub === "join") {
         if (T.status !== "registration") return api.sendMessage(UI(["Aucun tournoi ouvert."]), threadID);
-        if (T.players.find(p => p.id === senderID)) return api.sendMessage(UI(["Déjà inscrit."]), threadID);
+        if (T.players.find(p => p.id === senderID)) return api.sendMessage(UI(["Deja inscrit."]), threadID);
         if (T.players.length >= T.requiredPlayers) return api.sendMessage(UI(["Tournoi complet."]), threadID);
         const name = (await usersData.getName(senderID)) || `Player ${senderID}`;
-        T.players.push({ id: senderID, name });
+        T.players.push({ id:senderID, name });
         return api.sendMessage(UI([`Inscrit ! (${T.players.length}/${T.requiredPlayers})`]), threadID);
       }
       if (sub === "out") {
-        if (T.status !== "registration") return api.sendMessage(UI(["Tournoi déjà commencé."]), threadID);
+        if (T.status !== "registration") return api.sendMessage(UI(["Tournoi deja commence."]), threadID);
         const idx = T.players.findIndex(p => p.id === senderID);
         if (idx === -1) return api.sendMessage(UI(["Pas inscrit."]), threadID);
         T.players.splice(idx, 1);
-        return api.sendMessage(UI(["Tu as quitté le tournoi."]), threadID);
+        return api.sendMessage(UI(["Tu as quitte le tournoi."]), threadID);
       }
       if (sub === "tournoi") {
         if (sub2 === "start") {
           const num = T.players.length;
-          if (![4, 8, 16].includes(num)) return api.sendMessage(UI([`Il faut 4, 8 ou 16 joueurs. Actuel: ${num}`]), threadID);
+          if (![4,8,16].includes(num)) return api.sendMessage(UI([`Il faut 4, 8 ou 16 joueurs. Actuel: ${num}`]), threadID);
           T.requiredPlayers = num;
-          await startTournament(threadID, api, usersData);
-          return;
+          await startTournament(threadID, api, usersData); return;
         }
-        if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData);
-          await sendImage(api, threadID, bi, `Tournoi — tape ${p}ttt join`); } else await api.sendMessage(generateTournamentBracketText(T), threadID);
+        if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData); await sendImage(api, threadID, bi, `Tournoi — tape ${p}ttt join`); }
+        else await api.sendMessage(generateTournamentBracketText(T), threadID);
         return;
       }
     }
 
     if (sub === "ia" || sub === "ai") {
-      const betRaw = args[1];
-      const oddRaw = parseFloat(args[2]) || 2;
-      const diffArg = (args[3] || aiDifficulty.get(senderID) || "normal").toLowerCase();
-      const validDiff = ["facile", "normal", "impossible"].includes(diffArg) ? diffArg : "normal";
-      const clampOd = Math.min(20, Math.max(1, oddRaw));
-      const betAmt = await parseAmount(betRaw);
+      const betRaw   = args[1];
+      const oddRaw   = parseFloat(args[2]) || 2;
+      const diffArg  = (args[3] || aiDifficulty.get(senderID) || "normal").toLowerCase();
+      const validDiff = ["facile","normal","impossible"].includes(diffArg) ? diffArg : "normal";
+      const clampOd  = Math.min(20, Math.max(1, oddRaw));
+      const betAmt   = await parseAmount(betRaw);
       const userName = (await usersData.getName(senderID)) || `Player ${senderID}`;
 
       if (betAmt > 0n) {
@@ -1707,260 +1436,260 @@ module.exports = {
       }
 
       const gID = `${threadID}:ai:${senderID}`;
-      resetGame(gID, { id: senderID, name: userName }, { id: "AI", name: BOT_NAME }, {
-        isAI: true,
-        threadID,
-        imageMode: imageModeByThread[threadID] || false,
-        aiDifficulty: validDiff,
-        bets: betAmt > 0n ? { [senderID]: betAmt.toString() } : null,
-        odds: betAmt > 0n ? { [senderID]: clampOd } : null
-      });
+      resetGame(gID,
+        { id:senderID, name:userName },
+        { id:"AI", name:BOT_NAME },
+        { isAI:true, threadID, imageMode:imageModeByThread[threadID]||false, aiDifficulty:validDiff,
+          bets:betAmt>0n?{[senderID]:betAmt.toString()}:null,
+          odds:betAmt>0n?{[senderID]:clampOd}:null }
+      );
 
-      const betLine = betAmt > 0n ?
-        `Mise: ${await formatNumber(betAmt)}$ | Cote: x${clampOd} | Gain potentiel: ${await formatNumber(BigInt(Math.floor(Number(betAmt) * clampOd)))}$` :
-        "Sans mise";
+      const betLine = betAmt > 0n
+        ? `Mise: ${await formatNumber(betAmt)}$ | Cote: x${clampOd} | Gain: ${await formatNumber(BigInt(Math.floor(Number(betAmt)*clampOd)))}$`
+        : "Sans mise";
 
       if (games[gID].imageMode) {
         const img = await generateBoardImage(games[gID].board, games[gID].players[0], games[gID].players, usersData, "normal", games[gID].bets, games[gID].odds);
         await sendImage(api, threadID, img, UI([`VS IA (${validDiff})`, `${userName} (X) vs ${BOT_NAME} (O)`, "---", betLine]));
       } else {
-        await api.sendMessage(UI([`VS IA (${validDiff})`, `${userName} (X) vs ${BOT_NAME} (O)`, "---", betLine, "---", displayBoard(games[gID].board), "---", `${userName}, à toi (1-9)`]), threadID);
+        await api.sendMessage(UI([`VS IA (${validDiff})`, `${userName} (X) vs ${BOT_NAME} (O)`, "---", betLine, "---", displayBoard(games[gID].board), "---", `${userName}, a toi (1-9)`]), threadID);
       }
       if (games[gID].players[games[gID].currentPlayerIndex].id === "AI") await applyAIMove(gID, api, usersData);
       return;
     }
 
-    const mentions = event.mentions || {};
-    let targetID = Object.keys(mentions)[0] || null;
+    const mentions  = event.mentions || {};
+    let targetID    = Object.keys(mentions)[0] || null;
     if (!targetID && args[0]) { const ex = args[0].match(/\d+/); if (ex) targetID = ex[0]; }
     if (!targetID) return api.sendMessage(UI(["Mention invalide.", `${p}ttt @joueur <mise> [cote]`]), threadID);
-    if (targetID === senderID) return api.sendMessage(UI(["Tu ne peux pas jouer contre toi-même."]), threadID);
+    if (targetID === senderID) return api.sendMessage(UI(["Tu ne peux pas jouer contre toi-meme."]), threadID);
 
-    const betRaw1 = args[1];
-    const oddRaw1 = parseFloat(args[2]) || 2;
+    const betRaw1  = args[1];
+    const oddRaw1  = parseFloat(args[2]) || 2;
     const clampOd1 = Math.min(20, Math.max(1, oddRaw1));
-    const betAmt1 = await parseAmount(betRaw1);
-    const name1 = (await usersData.getName(senderID)) || `Player ${senderID}`;
-    const name2 = (mentions[targetID] || "").replace("@", "") || (await usersData.getName(targetID)) || `Player ${targetID}`;
-    const bets = {},
-      odds = {};
+    const betAmt1  = await parseAmount(betRaw1);
+    const name1    = (await usersData.getName(senderID)) || `Player ${senderID}`;
+    const name2    = (mentions[targetID]||"").replace("@","") || (await usersData.getName(targetID)) || `Player ${targetID}`;
+    const bets = {}, odds = {};
 
     if (betAmt1 > 0n) {
       const cash1 = await getUserCash(senderID);
       if (betAmt1 > cash1) return api.sendMessage(UI(["Fonds insuffisants (J1)", "---", `Solde: ${await formatNumber(cash1)}$`]), threadID);
       await updateUserCash(senderID, -betAmt1);
-      bets[senderID] = betAmt1.toString();
-      odds[senderID] = clampOd1;
+      bets[senderID] = betAmt1.toString(); odds[senderID] = clampOd1;
       const cash2 = await getUserCash(targetID);
-      if (betAmt1 > cash2) { await updateUserCash(senderID, betAmt1); return api.sendMessage(UI(["L'adversaire n'a pas assez d'argent.", "---", `Son solde: ${await formatNumber(cash2)}$`]), threadID); }
+      if (betAmt1 > cash2) { await updateUserCash(senderID, betAmt1); return api.sendMessage(UI(["L'adversaire n'a pas assez.", "---", `Son solde: ${await formatNumber(cash2)}$`]), threadID); }
       await updateUserCash(targetID, -betAmt1);
-      bets[targetID] = betAmt1.toString();
-      odds[targetID] = clampOd1;
+      bets[targetID] = betAmt1.toString(); odds[targetID] = clampOd1;
     }
 
     const gID = `${threadID}:pvp:${senderID}:${targetID}`;
-    resetGame(gID, { id: senderID, name: name1 }, { id: targetID, name: name2 }, {
-      threadID,
-      imageMode: imageModeByThread[threadID] || false,
-      bets: betAmt1 > 0n ? bets : null,
-      odds: betAmt1 > 0n ? odds : null
-    });
+    resetGame(gID, { id:senderID, name:name1 }, { id:targetID, name:name2 }, { threadID, imageMode:imageModeByThread[threadID]||false, bets:betAmt1>0n?bets:null, odds:betAmt1>0n?odds:null });
 
-    const betLine = betAmt1 > 0n ?
-      `Mise: ${await formatNumber(betAmt1)}$ chacun | Cote: x${clampOd1}` :
-      "Sans mise";
+    const betLine = betAmt1 > 0n ? `Mise: ${await formatNumber(betAmt1)}$ chacun | Cote: x${clampOd1}` : "Sans mise";
 
     if (games[gID].imageMode) {
       const img = await generateBoardImage(games[gID].board, games[gID].players[0], games[gID].players, usersData, "normal", games[gID].bets, games[gID].odds);
-      await sendImage(api, threadID, img, UI([`${name1} (X) vs ${name2} (O)`, "---", betLine, "---", `${name1}, à toi (1-9)`]));
+      await sendImage(api, threadID, img, UI([`${name1} (X) vs ${name2} (O)`, "---", betLine, "---", `${name1}, a toi (1-9)`]));
     } else {
-      await api.sendMessage(UI([`${name1} (X) vs ${name2} (O)`, "---", betLine, "---", displayBoard(games[gID].board), "---", `${name1}, à toi (1-9)`]), threadID);
+      await api.sendMessage(UI([`${name1} (X) vs ${name2} (O)`, "---", betLine, "---", displayBoard(games[gID].board), "---", `${name1}, a toi (1-9)`]), threadID);
     }
   },
 
   onChat: async function ({ api, event, usersData }) {
     const threadID = event.threadID;
     const senderID = event.senderID;
-    const msg = (event.body || "").trim();
+    const msg      = (event.body || "").trim();
     const msgLower = msg.toLowerCase();
 
     const response = msgLower.match(/^(oui|non)$/);
     if (response) {
-      let foundInvite = null,
-        inviteId = null;
+      let foundInvite = null, inviteId = null;
       for (const [id, invite] of onlineInvites) {
         if (invite.targetId === senderID && invite.targetThreadId === String(threadID)) {
-          foundInvite = invite;
-          inviteId = id;
-          break;
+          foundInvite = invite; inviteId = id; break;
         }
       }
+
       if (foundInvite) {
         const to = inviteTimeouts.get(inviteId);
-        if (to) { clearTimeout(to);
-          inviteTimeouts.delete(inviteId); }
+        if (to) { clearTimeout(to); inviteTimeouts.delete(inviteId); }
 
         if (response[0] === "non") {
           onlineInvites.delete(inviteId);
-          await api.sendMessage(UI(["❌ Tu as refusé l'invitation."]), threadID);
-          try { await api.sendMessage(UI([`${foundInvite.targetName} a refusé ton invitation.`]), foundInvite.threadId); } catch {}
+          await api.sendMessage(UI(["Tu as refuse l'invitation."]), threadID);
+          try { await api.sendMessage(UI([`${foundInvite.targetName} a refuse ton invitation.`]), foundInvite.threadId); } catch {}
           return;
         }
+
         onlineInvites.delete(inviteId);
 
         if (findAnyActiveGame(senderID)) {
-          await api.sendMessage(UI(["❌ Tu es déjà en jeu."]), threadID);
-          try { await api.sendMessage(UI([`${foundInvite.targetName} est déjà en jeu.`]), foundInvite.threadId); } catch {}
+          await api.sendMessage(UI(["Tu es deja en jeu."]), threadID);
+          try { await api.sendMessage(UI([`${foundInvite.targetName} est deja en jeu.`]), foundInvite.threadId); } catch {}
           return;
         }
         if (findAnyActiveGame(foundInvite.uid)) {
-          await api.sendMessage(UI(["❌ L'invitant est déjà en jeu."]), threadID);
-          return;
+          await api.sendMessage(UI(["L'invitant est deja en jeu."]), threadID); return;
         }
 
-        // Vérifier les fonds des deux joueurs
-        const betAmt = toBigInt(foundInvite.bet);
+        const betAmt     = toBigInt(foundInvite.bet);
         const cashInviter = await getUserCash(foundInvite.uid);
-        const cashTarget = await getUserCash(senderID);
+        const cashTarget  = await getUserCash(senderID);
 
         if (betAmt > cashInviter) {
-          await api.sendMessage(UI(["❌ L'invitant n'a plus assez d'argent.", `💰 Sa mise: ${await formatNumber(betAmt)}$`, `Solde actuel: ${await formatNumber(cashInviter)}$`]), threadID);
+          await api.sendMessage(UI(["L'invitant n'a plus assez d'argent.", `Mise: ${await formatNumber(betAmt)}$`, `Son solde: ${await formatNumber(cashInviter)}$`]), threadID);
           return;
         }
         if (betAmt > cashTarget) {
-          await api.sendMessage(UI(["❌ Tu n'as pas assez d'argent.", `💰 Mise: ${await formatNumber(betAmt)}$`, `Solde: ${await formatNumber(cashTarget)}$`]), threadID);
+          await api.sendMessage(UI(["Tu n'as pas assez d'argent.", `Mise: ${await formatNumber(betAmt)}$`, `Ton solde: ${await formatNumber(cashTarget)}$`]), threadID);
           try { await api.sendMessage(UI([`${foundInvite.targetName} n'a pas assez d'argent.`]), foundInvite.threadId); } catch {}
           return;
         }
 
-        // Débiter les deux joueurs
         await updateUserCash(foundInvite.uid, -betAmt);
         await updateUserCash(senderID, -betAmt);
 
+        const bets = { [foundInvite.uid]: betAmt.toString(), [senderID]: betAmt.toString() };
+
         await api.sendMessage(UI([
-          "✅ Invitation acceptée !",
-          "---",
-          `💰 Mise: ${await formatNumber(betAmt)}$ chacun`,
-          `🏆 Pot total: ${await formatNumber(betAmt * 2n)}$`,
-          "---",
+          "Invitation acceptee !", "---",
+          `Mise: ${await formatNumber(betAmt)}$ chacun`,
+          `Pot total: ${await formatNumber(betAmt * 2n)}$`, "---",
           `${foundInvite.inviterName} commence en X, tu joues en O.`,
-          "Envoie un nombre (1-9) pour jouer."
+          "Envoie 1-9 pour jouer."
         ]), threadID);
 
         try {
-          await api.sendMessage(
-            UI([
-              "✅ Invitation acceptée !",
-              "---",
-              `${foundInvite.targetName} a accepté !`,
-              `💰 Pot total: ${await formatNumber(betAmt * 2n)}$`,
-              `Tu joues en X contre ${foundInvite.targetName} (O).`,
-              `${foundInvite.inviterName}, à toi (1-9).`
-            ]),
-            foundInvite.threadId
-          );
+          await api.sendMessage(UI([
+            "Invitation acceptee !", "---",
+            `${foundInvite.targetName} a accepte !`,
+            `Pot total: ${await formatNumber(betAmt * 2n)}$`,
+            `Tu joues en X contre ${foundInvite.targetName} (O).`,
+            `${foundInvite.inviterName}, a toi (1-9).`
+          ]), foundInvite.threadId);
         } catch {}
 
         const gID = `online_${foundInvite.uid}_${senderID}_${Date.now()}`;
-        const bets = {
-          [foundInvite.uid]: betAmt.toString(),
-          [senderID]: betAmt.toString()
-        };
 
-        resetGame(gID, { id: foundInvite.uid, name: foundInvite.inviterName }, { id: senderID, name: foundInvite.targetName }, {
-          threadID: foundInvite.threadId,
-          partnerThreadId: threadID,
-          imageMode: imageModeByThread[foundInvite.threadId] || imageModeByThread[threadID] || false,
-          isOnline: true,
-          bets: bets,
-          odds: null
-        });
+        resetGame(gID,
+          { id: foundInvite.uid, name: foundInvite.inviterName },
+          { id: senderID, name: foundInvite.targetName },
+          {
+            threadID: foundInvite.threadId,
+            partnerThreadID: threadID,
+            imageMode: imageModeByThread[foundInvite.threadId] || imageModeByThread[threadID] || false,
+            isOnline: true,
+            bets,
+            odds: null
+          }
+        );
 
         onlineGames.set(gID, {
-          uid: foundInvite.uid,
-          partnerId: senderID,
-          threadId: foundInvite.threadId,
-          partnerThreadId: threadID,
-          gameId: gID
+          uid: foundInvite.uid, partnerId: senderID,
+          threadId: foundInvite.threadId, partnerThreadId: threadID, gameId: gID
         });
         saveOnlineGames();
 
-        const inviterGameObj = games[gID];
-        if (inviterGameObj.imageMode) {
-          const img = await generateBoardImage(inviterGameObj.board, inviterGameObj.players[0], inviterGameObj.players, usersData, "online", bets, null);
-          await sendImage(api, foundInvite.threadId, img, UI([`🌐 ONLINE`, `${foundInvite.inviterName} (X) vs ${foundInvite.targetName} (O)`, `💰 Pot: ${await formatNumber(betAmt * 2n)}$`, "---", `${foundInvite.inviterName}, à toi (1-9)`]));
+        const game = games[gID];
+
+        if (game.imageMode) {
+          const img = await generateBoardImage(game.board, game.players[0], game.players, usersData, "online", bets, null);
+          if (img) {
+            await sendImage(api, foundInvite.threadId, img, `${foundInvite.inviterName}, a toi ! (1-9)`);
+            try { await sendImage(api, threadID, img, `${foundInvite.targetName}, attends le tour de ${foundInvite.inviterName}.`); } catch {}
+          }
         } else {
-          await api.sendMessage(UI([`🌐 ONLINE`, `${foundInvite.inviterName} (X) vs ${foundInvite.targetName} (O)`, `💰 Pot: ${await formatNumber(betAmt * 2n)}$`, "---", displayBoard(inviterGameObj.board), "---", `${foundInvite.inviterName}, à toi (1-9)`]), foundInvite.threadId);
+          const boardTxt = UI([
+            `[ONLINE] ${foundInvite.inviterName} (X) vs ${foundInvite.targetName} (O)`,
+            `Pot: ${await formatNumber(betAmt * 2n)}$`,
+            "---",
+            displayBoard(game.board),
+            "---",
+            `${foundInvite.inviterName}, a toi (1-9)`
+          ]);
+          await api.sendMessage(boardTxt, foundInvite.threadId);
+          try {
+            await api.sendMessage(UI([
+              `[ONLINE] ${foundInvite.inviterName} (X) vs ${foundInvite.targetName} (O)`,
+              `Pot: ${await formatNumber(betAmt * 2n)}$`,
+              "---",
+              displayBoard(game.board),
+              "---",
+              `Attends le tour de ${foundInvite.inviterName}.`
+            ]), threadID);
+          } catch {}
         }
         return;
       }
     }
 
-    const gameID = Object.keys(games).find(id =>
-      games[id].threadID === threadID &&
-      games[id].players.some(p => p.id === senderID) &&
-      games[id].inProgress
-    );
+    const gameID = Object.keys(games).find(id => {
+      const g = games[id];
+      if (!g.inProgress) return false;
+      const isPlayer = g.players.some(pl => pl.id === senderID);
+      if (!isPlayer) return false;
+      if (g.isOnline) {
+        const playerObj = g.players.find(pl => pl.id === senderID);
+        if (!playerObj) return false;
+        const expectedThread = playerObj.id === g.players[0].id ? g.threadID : g.partnerThreadID;
+        return String(threadID) === String(expectedThread);
+      }
+      return String(g.threadID) === String(threadID);
+    });
 
     if (!gameID) {
-      const finished = Object.keys(games).find(id =>
-        games[id].threadID === threadID &&
-        games[id].players.some(p => p.id === senderID) &&
-        !games[id].inProgress
-      );
+      const finished = Object.keys(games).find(id => {
+        const g = games[id];
+        if (g.inProgress) return false;
+        const isPlayer = g.players.some(pl => pl.id === senderID);
+        if (!isPlayer) return false;
+        if (g.isOnline) {
+          const playerObj = g.players.find(pl => pl.id === senderID);
+          const expectedThread = playerObj?.id === g.players[0].id ? g.threadID : g.partnerThreadID;
+          return String(threadID) === String(expectedThread);
+        }
+        return String(g.threadID) === String(threadID);
+      });
 
       if (finished) {
         const fg = games[finished];
 
         if (msgLower === "rematch") {
-          if (fg.isTournamentGame || fg.isOnline) return api.sendMessage(UI(["Impossible de refaire un match dans ce mode."]), threadID);
+          if (fg.isTournamentGame || fg.isOnline) return api.sendMessage(UI(["Impossible dans ce mode."]), threadID);
           const other = fg.players.find(p => p.id !== senderID);
           if (!other) return;
           if (!rematchPending.has(finished)) {
-            rematchPending.set(finished, { uid: senderID, name: fg.players.find(p => p.id === senderID).name });
-            return api.sendMessage(UI([`${fg.players.find(p => p.id === senderID).name} veut une revanche !`, `${other.name}, tape "rematch" pour accepter.`]), threadID);
+            rematchPending.set(finished, { uid:senderID, name:fg.players.find(p=>p.id===senderID).name });
+            return api.sendMessage(UI([`${fg.players.find(p=>p.id===senderID).name} veut une revanche !`, `${other.name}, tape "rematch" pour accepter.`]), threadID);
           }
           const pending = rematchPending.get(finished);
-          if (pending.uid === senderID) return api.sendMessage(UI(["Déjà demandé. En attente de l'adversaire."]), threadID);
+          if (pending.uid === senderID) return api.sendMessage(UI(["Deja demande. En attente."]), threadID);
 
           rematchPending.delete(finished);
           const swapped = [fg.players[1], fg.players[0]];
-          resetGame(finished, { id: swapped[0].id, name: swapped[0].name }, { id: swapped[1].id, name: swapped[1].name }, {
-            isAI: fg.isAI,
-            threadID,
-            imageMode: fg.imageMode,
-            bets: fg.bets,
-            odds: fg.odds,
-            aiDifficulty: fg.aiDifficulty
-          });
+          resetGame(finished, { id:swapped[0].id, name:swapped[0].name }, { id:swapped[1].id, name:swapped[1].name }, { isAI:fg.isAI, threadID, imageMode:fg.imageMode, bets:fg.bets, odds:fg.odds, aiDifficulty:fg.aiDifficulty });
           const newG = games[finished];
           if (fg.imageMode) {
             const img = await generateBoardImage(newG.board, newG.players[0], newG.players, usersData, "normal", newG.bets, newG.odds);
-            await sendImage(api, threadID, img, `Revanche ! Rôles inversés — ${newG.players[0].name} commence !`);
+            await sendImage(api, threadID, img, `Revanche ! Roles inverses — ${newG.players[0].name} commence !`);
           } else {
-            await api.sendMessage(UI([`Revanche ! Rôles inversés`, `${newG.players[0].name} (X) vs ${newG.players[1].name} (O)`, "---", displayBoard(newG.board), "---", `${newG.players[0].name}, à toi (1-9)`]), threadID);
+            await api.sendMessage(UI([`Revanche ! Roles inverses`, `${newG.players[0].name} (X) vs ${newG.players[1].name} (O)`, "---", displayBoard(newG.board), "---", `${newG.players[0].name}, a toi (1-9)`]), threadID);
           }
           if (fg.isAI && newG.players[newG.currentPlayerIndex].id === "AI") await applyAIMove(finished, api, usersData);
           return;
         }
 
         if (msgLower === "restart") {
-          if (fg.isTournamentGame || fg.isOnline) return api.sendMessage(UI(["Impossible de redémarrer dans ce mode."]), threadID);
+          if (fg.isTournamentGame || fg.isOnline) return api.sendMessage(UI(["Impossible dans ce mode."]), threadID);
           rematchPending.delete(finished);
-          resetGame(finished, fg.players[0], fg.players[1], {
-            isAI: fg.isAI,
-            threadID,
-            imageMode: fg.imageMode,
-            bets: fg.bets,
-            odds: fg.odds,
-            aiDifficulty: fg.aiDifficulty
-          });
+          resetGame(finished, fg.players[0], fg.players[1], { isAI:fg.isAI, threadID, imageMode:fg.imageMode, bets:fg.bets, odds:fg.odds, aiDifficulty:fg.aiDifficulty });
           const newG = games[finished];
           if (fg.imageMode) {
             const img = await generateBoardImage(newG.board, newG.players[0], newG.players, usersData);
-            await sendImage(api, threadID, img, `Redémarrage ! ${newG.players[0].name}, à toi.`);
+            await sendImage(api, threadID, img, `Redemarrage ! ${newG.players[0].name}, a toi.`);
           } else {
-            await api.sendMessage(UI([`Redémarrage !`, `${newG.players[0].name} (X) vs ${newG.players[1].name} (O)`, "---", displayBoard(newG.board), "---", `${newG.players[0].name}, à toi (1-9)`]), threadID);
+            await api.sendMessage(UI([`Redemarrage !`, `${newG.players[0].name} (X) vs ${newG.players[1].name} (O)`, "---", displayBoard(newG.board), "---", `${newG.players[0].name}, a toi (1-9)`]), threadID);
           }
           if (fg.isAI && newG.players[newG.currentPlayerIndex].id === "AI") await applyAIMove(finished, api, usersData);
           return;
@@ -1974,26 +1703,17 @@ module.exports = {
     if (game.isMathChallenge) {
       if (msg === "2") {
         const winner = game.players.find(p => p.id === senderID);
-        const loser = game.players.find(p => p.id !== senderID);
-        await api.sendMessage(UI(["CORRECT !", `${winner.name} gagne le match nul !`]), threadID);
-        game.board = Array(9).fill(winner.symbol);
-        game.inProgress = false;
-        game.isMathChallenge = false;
-        ensurePlayerStats(winner.id);
-        ensurePlayerStats(loser.id);
-        playerStats[winner.id].wins++;
-        playerStats[loser.id].losses++;
-        saveStats();
+        const loser  = game.players.find(p => p.id !== senderID);
+        await api.sendMessage(UI(["CORRECT !", `${winner.name} gagne !`]), threadID);
+        game.board = Array(9).fill(winner.symbol); game.inProgress = false; game.isMathChallenge = false;
+        ensurePlayerStats(winner.id); ensurePlayerStats(loser.id);
+        playerStats[winner.id].wins++; playerStats[loser.id].losses++; saveStats();
         if (game.isTournamentGame && tournaments[game.tournamentID]) {
-          const T = tournaments[game.tournamentID],
-            round = T.rounds[T.currentRoundIndex],
-            match = round.matches[game.matchIndex];
-          if (match) { match.winner = winner.id;
-            match.completed = true; }
+          const T = tournaments[game.tournamentID], round = T.rounds[T.currentRoundIndex], match = round.matches[game.matchIndex];
+          if (match) { match.winner = winner.id; match.completed = true; }
           const doneAll = round.matches.every(m => m.completed);
           if (doneAll) {
-            if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData);
-              await sendImage(api, game.threadID, bi); }
+            if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData); await sendImage(api, game.threadID, bi); }
             await advanceTournamentRound(game.tournamentID, api, usersData);
           } else await initiateNextMatch(game.tournamentID, api, usersData);
         }
@@ -2003,65 +1723,60 @@ module.exports = {
 
     if (msgLower === "forfait") {
       const forfeiter = game.players.find(p => p.id === senderID);
-      const other = game.players.find(p => p.id !== senderID);
+      const other     = game.players.find(p => p.id !== senderID);
       if (!forfeiter || !other) return;
       game.inProgress = false;
-      ensurePlayerStats(forfeiter.id);
-      ensurePlayerStats(other.id);
-      playerStats[forfeiter.id].losses++;
-      playerStats[forfeiter.id].played++;
-      playerStats[other.id].wins++;
-      playerStats[other.id].played++;
-      updateStreak(other.id, true);
-      updateStreak(forfeiter.id, false);
-      saveStats();
+      ensurePlayerStats(forfeiter.id); ensurePlayerStats(other.id);
+      playerStats[forfeiter.id].losses++; playerStats[forfeiter.id].played++;
+      playerStats[other.id].wins++;      playerStats[other.id].played++;
+      updateStreak(other.id, true); updateStreak(forfeiter.id, false); saveStats();
       let gainInfo = null;
 
       if (game.bets) {
-        const totalPot = toBigInt(game.bets[forfeiter.id] || 0n) + toBigInt(game.bets[other.id] || 0n);
+        const totalPot = Object.values(game.bets).reduce((s, b) => s + toBigInt(b), 0n);
         await updateUserCash(other.id, totalPot);
-        gainInfo = {
-          line1: `${forfeiter.name} abandonne`,
-          line2: `${other.name} gagne +${await formatNumber(totalPot)}$`,
-          line3: `${forfeiter.name} perd ${await formatNumber(toBigInt(game.bets[forfeiter.id] || 0n))}$`
-        };
+        gainInfo = { line1:`${forfeiter.name} abandonne`, line2:`${other.name} gagne +${await formatNumber(totalPot)}$`, line3:"" };
       }
 
       if (game.imageMode) {
         const img = await generateEndGameImage(game.board, other, game.players, usersData, false, gainInfo);
-        if (img) await sendImage(api, threadID, img);
+        if (img) {
+          await sendImage(api, game.threadID, img);
+          if (game.isOnline && game.partnerThreadID) try { await sendImage(api, game.partnerThreadID, img, `${forfeiter.name} a abandonne !`); } catch {}
+        }
       } else {
         let txt = UI([`${forfeiter.name} abandonne.`, `${other.name} gagne !`]);
-        if (gainInfo) txt += `\n${gainInfo.line1}\n${gainInfo.line2}\n${gainInfo.line3}`;
-        await api.sendMessage(txt, threadID);
+        if (gainInfo) txt += `\n${gainInfo.line1}\n${gainInfo.line2}`;
+        await api.sendMessage(txt, game.threadID);
+        if (game.isOnline && game.partnerThreadID) try { await api.sendMessage(txt, game.partnerThreadID); } catch {}
       }
+
       spectators.delete(gameID);
       if (game.isTournamentGame && tournaments[game.tournamentID]) {
-        const T = tournaments[game.tournamentID],
-          round = T.rounds[T.currentRoundIndex],
-          match = round.matches[game.matchIndex];
-        if (match) { match.winner = other.id;
-          match.completed = true; }
+        const T = tournaments[game.tournamentID], round = T.rounds[T.currentRoundIndex], match = round.matches[game.matchIndex];
+        if (match) { match.winner = other.id; match.completed = true; }
         const done = round.matches.every(m => m.completed);
         if (done) {
-          if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData);
-            await sendImage(api, threadID, bi); }
+          if (T.imageMode) { const bi = await generateTournamentBracketImage(T, usersData); await sendImage(api, threadID, bi); }
           await advanceTournamentRound(game.tournamentID, api, usersData);
         } else await initiateNextMatch(game.tournamentID, api, usersData);
       } else {
-        await api.sendMessage(`Tape "rematch" ou "restart" pour rejouer.`, threadID);
+        await api.sendMessage(`Tape "rematch" ou "restart" pour rejouer.`, game.threadID);
       }
       return;
     }
 
     const current = game.players[game.currentPlayerIndex];
     if (senderID !== current.id) return;
+
     const pos = parseInt(msg) - 1;
     if (isNaN(pos) || pos < 0 || pos > 8) return;
-    if (game.board[pos] !== null) { await api.sendMessage(UI(["Case déjà prise."]), threadID); return; }
+    if (game.board[pos] !== null) {
+      await api.sendMessage(UI(["Case deja prise."]), threadID); return;
+    }
 
     game.board[pos] = current.symbol;
-    game.moves.push({ player: current.id, position: pos, board: [...game.board], time: Date.now() });
+    game.moves.push({ player:current.id, position:pos, board:[...game.board], time:Date.now() });
     game.lastMoveTime = Date.now();
 
     const winner2 = checkWinner(game.board);
@@ -2071,24 +1786,31 @@ module.exports = {
     game.currentPlayerIndex = (game.currentPlayerIndex + 1) % 2;
     const next = game.players[game.currentPlayerIndex];
 
-    if (game.isOnline && game.partnerThreadId) {
-      const partnerInProgress = Object.keys(games).find(id => games[id].players.some(p => p.id === (game.players.find(pl => pl.id !== senderID))?.id) && games[id].inProgress);
-      if (partnerInProgress && game.imageMode) {
+    if (game.isOnline && game.partnerThreadID) {
+      const nextThread = next.id === game.players[0].id ? game.threadID : game.partnerThreadID;
+      const prevThread = next.id === game.players[0].id ? game.partnerThreadID : game.threadID;
+
+      if (game.imageMode) {
         const img = await generateBoardImage(game.board, next, game.players, usersData, "online", game.bets, game.odds);
-        await sendImage(api, game.partnerThreadId, img, `Tour: ${next.name}`);
-      } else if (partnerInProgress) {
-        await api.sendMessage(UI([displayBoard(game.board), "---", `Tour: ${next.name}`]), game.partnerThreadId);
+        if (img) {
+          try { await sendImage(api, nextThread, img, `${next.name}, c'est ton tour ! (1-9)`); } catch {}
+          try { await sendImage(api, prevThread, img, `Tu as joue. Tour de ${next.name}.`); } catch {}
+        }
+      } else {
+        const boardTxt = displayBoard(game.board);
+        try { await api.sendMessage(`${boardTxt}\n${UI([`Tour: ${next.name}`, "Envoie 1-9 pour jouer !"])}`   , nextThread); } catch {}
+        try { await api.sendMessage(`${boardTxt}\n${UI([`Tour de ${next.name}.`, "Attends son coup."])}`       , prevThread); } catch {}
+      }
+    } else {
+      if (game.imageMode) {
+        const img = await generateBoardImage(game.board, next, game.players, usersData, game.isTournamentGame ? "tournament" : "normal", game.bets, game.odds);
+        if (img) await sendImage(api, game.threadID, img, `Tour: ${next.name}`);
+      } else {
+        await api.sendMessage(UI([displayBoard(game.board), "---", `Tour: ${next.name}`]), game.threadID);
       }
     }
 
-    if (game.imageMode) {
-      const img = await generateBoardImage(game.board, next, game.players, usersData, game.isOnline ? "online" : game.isTournamentGame ? "tournament" : "normal", game.bets, game.odds);
-      if (img) await sendImage(api, game.threadID, img, `Tour: ${next.name}`);
-    } else {
-      await api.sendMessage(UI([displayBoard(game.board), "---", `Tour: ${next.name}`]), game.threadID);
-    }
-
-    notifySpectators(gameID, api, null, usersData);
+    notifySpectators(gameID, api, usersData);
     if (game.isAI && next.id === "AI") await applyAIMove(gameID, api, usersData);
   }
 };
