@@ -13,6 +13,7 @@ const STATS_FILE   = path.join(__dirname, "tictactoe_stats.json");
 const HISTORY_FILE = path.join(__dirname, "tictactoe_history.json");
 const STREAK_FILE  = path.join(__dirname, "tictactoe_streaks.json");
 const ONLINE_FILE  = path.join(__dirname, "tictactoe_online.json");
+const GROUP_SELECTION_FILE = path.join(__dirname, "tictactoe_group_selection.json");
 const ASSETS_DIR   = path.join(__dirname, "tictactoe_assets");
 const BOT_UID  = global.botID;
 const BOT_NAME = "Hedgehog GPT";
@@ -77,6 +78,8 @@ let gameHistory   = loadHistory();
 let playerStreaks  = loadStreaks();
 let onlineGames   = new Map();
 let onlineInvites = new Map();
+let groupSelections = new Map();
+let groupPages = new Map();
 const inviteTimeouts    = new Map();
 const playerCache       = new Map();
 const imageModeByThread = {};
@@ -122,6 +125,23 @@ function saveOnlineGames() {
   } catch {}
 }
 loadOnlineGames();
+
+function loadGroupSelections() {
+  try {
+    if (fs.existsSync(GROUP_SELECTION_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(GROUP_SELECTION_FILE, "utf8"));
+      for (const [k, v] of Object.entries(raw)) groupSelections.set(k, v);
+    }
+  } catch {}
+}
+function saveGroupSelections() {
+  try {
+    const obj = {};
+    for (const [k, v] of groupSelections) obj[k] = v;
+    fs.writeFileSync(GROUP_SELECTION_FILE, JSON.stringify(obj, null, 2));
+  } catch {}
+}
+loadGroupSelections();
 
 function ensurePlayerStats(id) {
   if (!playerStats[id]) playerStats[id] = { wins: 0, losses: 0, draws: 0, played: 0, totalWon: "0", totalLost: "0" };
@@ -1181,7 +1201,7 @@ module.exports = {
     version:          "17.0",
     author:           "Ismael03-Dev",
     category:         "game",
-    shortDescription: { en: "TicTacToe Ultimate v17 — bugs online fixes, emojis, avatars, streaks" }
+    shortDescription: { en: "TicTacToe Ultimate v17 — Group list, online bets, avatars, streaks" }
   },
 
   onStart: async function ({ api, event, args, usersData }) {
@@ -1198,6 +1218,7 @@ module.exports = {
       `${p}ttt @joueur <mise> [cote]`,
       `${p}ttt ai <mise> [cote] [diff]`,
       `${p}ttt online <user_id> <group_id> <mise>`,
+      `${p}ttt group`,
       "---",
       "AI diff: facile/normal/impossible",
       "Cote: 1-20 | Match nul: rembourse",
@@ -1227,6 +1248,56 @@ module.exports = {
         return api.sendMessage(UI(["Valide: facile / normal / impossible"]), threadID);
       aiDifficulty.set(senderID, diff);
       return api.sendMessage(UI([`Difficulte IA: ${diff}`]), threadID);
+    }
+
+    if (sub === "group") {
+      try {
+        const threads = await api.getThreadList(100, null, ["INBOX"]);
+        const groups = threads
+          .filter(t => t.isGroup && t.threadID)
+          .map(t => ({
+            id: t.threadID,
+            name: t.name || "Groupe sans nom",
+            members: t.participantIDs?.length || 0,
+            online: t.onlineUsers?.length || 0
+          }));
+
+        if (groups.length === 0) return api.sendMessage(UI(["Aucun groupe trouve."]), threadID);
+
+        const lines = ["📋 GROUPES", "---", `Total: ${groups.length} groupes`, "---"];
+        for (let i = 0; i < groups.length; i++) {
+          const g = groups[i];
+          lines.push(`${i + 1}. ${g.name}`);
+          lines.push(`   👥 ${g.members} membres (${g.online} en ligne)`);
+          lines.push(`   🆔 ${g.id}`);
+          lines.push("---");
+        }
+        lines.push(`Reponds avec un numero (1-${groups.length}) pour voir les membres`);
+        lines.push(`Tape "page 2" pour voir plus de groupes`);
+
+        const msg = await api.sendMessage(UI(lines), threadID);
+
+        groupSelections.set(senderID, {
+          groups: groups,
+          msgId: msg.messageID,
+          threadId: threadID,
+          timestamp: Date.now(),
+          currentPage: 0,
+          totalPages: Math.ceil(groups.length / 10)
+        });
+        saveGroupSelections();
+
+        setTimeout(() => {
+          if (groupSelections.has(senderID)) {
+            groupSelections.delete(senderID);
+            saveGroupSelections();
+          }
+        }, 120000);
+
+        return;
+      } catch (error) {
+        return api.sendMessage(UI(["Erreur lors de la recuperation des groupes."]), threadID);
+      }
     }
 
     if (sub === "games") {
@@ -1501,6 +1572,168 @@ module.exports = {
     const senderID = event.senderID;
     const msg      = (event.body || "").trim();
     const msgLower = msg.toLowerCase();
+
+    const pageMatch = msgLower.match(/^page\s*(\d+)$/);
+    if (pageMatch && groupSelections.has(senderID)) {
+      const selection = groupSelections.get(senderID);
+      const page = parseInt(pageMatch[1]) - 1;
+      const totalPages = selection.totalPages || 1;
+      const groups = selection.groups;
+
+      if (page < 0 || page >= totalPages) {
+        await api.sendMessage(UI([`Page invalide. Choisis entre 1 et ${totalPages}.`]), threadID);
+        return;
+      }
+
+      selection.currentPage = page;
+      saveGroupSelections();
+
+      const start = page * 10;
+      const end = Math.min(start + 10, groups.length);
+      const pageGroups = groups.slice(start, end);
+
+      const lines = [`📋 GROUPES — Page ${page + 1}/${totalPages}`, "---", `Total: ${groups.length} groupes`, "---"];
+      for (let i = 0; i < pageGroups.length; i++) {
+        const g = pageGroups[i];
+        const num = start + i + 1;
+        lines.push(`${num}. ${g.name}`);
+        lines.push(`   👥 ${g.members} membres (${g.online} en ligne)`);
+        lines.push(`   🆔 ${g.id}`);
+        lines.push("---");
+      }
+      lines.push(`Reponds avec un numero (${start + 1}-${end}) pour voir les membres`);
+      if (page > 0) lines.push(`Tape "page ${page}" pour la page precedente`);
+      if (page + 1 < totalPages) lines.push(`Tape "page ${page + 2}" pour la page suivante`);
+
+      await api.sendMessage(UI(lines), threadID);
+      return;
+    }
+
+    const numMatch = msg.match(/^(\d+)$/);
+    if (numMatch && groupSelections.has(senderID)) {
+      const selection = groupSelections.get(senderID);
+      const num = parseInt(numMatch[1]) - 1;
+      const groups = selection.groups;
+      const currentPage = selection.currentPage || 0;
+      const start = currentPage * 10;
+      const end = Math.min(start + 10, groups.length);
+
+      if (num < start || num >= end) {
+        await api.sendMessage(UI([`Numero invalide. Choisis entre ${start + 1} et ${end}.`]), threadID);
+        return;
+      }
+
+      if (num >= 0 && num < groups.length) {
+        const selectedGroup = groups[num];
+        try {
+          const threadInfo = await api.getThreadInfo(selectedGroup.id);
+          if (!threadInfo) {
+            await api.sendMessage(UI(["Erreur lors de la recuperation du groupe."]), threadID);
+            groupSelections.delete(senderID);
+            saveGroupSelections();
+            return;
+          }
+
+          const participants = threadInfo.participantIDs || [];
+          const onlineUsers = threadInfo.onlineUsers || [];
+          const memberNames = await Promise.all(
+            participants.slice(0, 50).map(async (id) => {
+              const name = await usersData.getName(id).catch(() => `User_${String(id).slice(-5)}`);
+              const isOnline = onlineUsers.includes(id);
+              const status = isOnline ? "🟢" : "⚪";
+              return `${status} ${name} | ${id}`;
+            })
+          );
+
+          const lines = [
+            `📋 ${threadInfo.name || "Groupe sans nom"}`,
+            "---",
+            `👥 ${participants.length} membres`,
+            `🟢 ${onlineUsers.length} en ligne`,
+            `🆔 ${selectedGroup.id}`,
+            "---"
+          ];
+
+          if (memberNames.length > 0) {
+            lines.push(...memberNames);
+            if (participants.length > 50) {
+              lines.push(`... et ${participants.length - 50} de plus`);
+              lines.push(`Tape "page 2" pour voir la suite`);
+
+              groupSelections.set(senderID, {
+                ...selection,
+                groupMembers: {
+                  id: selectedGroup.id,
+                  name: threadInfo.name || "Groupe sans nom",
+                  participants: participants,
+                  onlineUsers: onlineUsers,
+                  currentPage: 1,
+                  totalPages: Math.ceil(participants.length / 50)
+                }
+              });
+              saveGroupSelections();
+            }
+          } else {
+            lines.push("Aucun membre trouve");
+          }
+
+          await api.sendMessage(UI(lines), threadID);
+        } catch (error) {
+          await api.sendMessage(UI(["Erreur lors de la recuperation des membres."]), threadID);
+        }
+
+        return;
+      } else {
+        await api.sendMessage(UI([`Numero invalide. Choisis entre ${start + 1} et ${end}.`]), threadID);
+        return;
+      }
+    }
+
+    const memberPageMatch = msgLower.match(/^page\s*(\d+)$/);
+    if (memberPageMatch && groupSelections.has(senderID)) {
+      const selection = groupSelections.get(senderID);
+      if (selection.groupMembers) {
+        const page = parseInt(memberPageMatch[1]) - 1;
+        const members = selection.groupMembers;
+        const totalPages = members.totalPages || 1;
+
+        if (page < 0 || page >= totalPages) {
+          await api.sendMessage(UI([`Page invalide. Choisis entre 1 et ${totalPages}.`]), threadID);
+          return;
+        }
+
+        const start = page * 50;
+        const end = Math.min(start + 50, members.participants.length);
+        const pageMembers = members.participants.slice(start, end);
+
+        const memberNames = await Promise.all(
+          pageMembers.map(async (id) => {
+            const name = await usersData.getName(id).catch(() => `User_${String(id).slice(-5)}`);
+            const isOnline = members.onlineUsers.includes(id);
+            const status = isOnline ? "🟢" : "⚪";
+            return `${status} ${name} | ${id}`;
+          })
+        );
+
+        const lines = [
+          `📋 ${members.name} — Page ${page + 1}/${totalPages}`,
+          "---",
+          `👥 ${members.participants.length} membres`,
+          `🟢 ${members.onlineUsers.length} en ligne`,
+          "---",
+          ...memberNames
+        ];
+
+        if (page > 0) lines.push(`Tape "page ${page}" pour la page precedente`);
+        if (page + 1 < totalPages) lines.push(`Tape "page ${page + 2}" pour la page suivante`);
+
+        await api.sendMessage(UI(lines), threadID);
+
+        selection.groupMembers.currentPage = page;
+        saveGroupSelections();
+        return;
+      }
+    }
 
     const response = msgLower.match(/^(oui|non)$/);
     if (response) {
