@@ -81,7 +81,6 @@ function loadStats() {
   } catch {}
   return {};
 }
-
 function saveStats() {
   try { fs.writeFileSync(STATS_FILE, JSON.stringify(playerStats, null, 2)); } catch {}
 }
@@ -92,7 +91,6 @@ function loadHistory() {
   } catch {}
   return [];
 }
-
 function saveHistory() {
   try { fs.writeFileSync(HISTORY_FILE, JSON.stringify(gameHistory.slice(0, 100), null, 2)); } catch {}
 }
@@ -103,7 +101,6 @@ function loadStreaks() {
   } catch {}
   return {};
 }
-
 function saveStreaks() {
   try { fs.writeFileSync(STREAK_FILE, JSON.stringify(playerStreaks, null, 2)); } catch {}
 }
@@ -284,6 +281,25 @@ function findShortestPath(grid, startRow, startCol, endRow, endCol) {
   return null;
 }
 
+function rollDice() {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
+function getDiceEmoji(value) {
+  const emojis = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+  return emojis[value - 1] || "🎲";
+}
+
+function getDirectionFromEmoji(emoji) {
+  const map = {
+    "⬆️": "haut",
+    "⬇️": "bas",
+    "⬅️": "gauche",
+    "➡️": "droite"
+  };
+  return map[emoji] || null;
+}
+
 async function generateMazeImage({ grid, rows, cols, playerPos, exitPos, path, playerName, bet, time, moves, difficulty, players }) {
   const W = 900, H = 900;
   const canvas = createCanvas(W, H);
@@ -450,25 +466,6 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
-}
-
-function rollDice() {
-  return Math.floor(Math.random() * 6) + 1;
-}
-
-function getDiceEmoji(value) {
-  const emojis = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
-  return emojis[value - 1] || "🎲";
-}
-
-function getDirectionFromEmoji(emoji) {
-  const map = {
-    "⬆️": "haut",
-    "⬇️": "bas",
-    "⬅️": "gauche",
-    "➡️": "droite"
-  };
-  return map[emoji] || null;
 }
 
 function createRoom(roomId, creatorId, creatorName, bet, difficulty = "normal") {
