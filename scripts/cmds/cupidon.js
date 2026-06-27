@@ -5,8 +5,15 @@ const axios = require("axios");
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+function getLoveScore(id1, id2) {
+  const now = new Date();
+  const seed = (parseInt(id1) + parseInt(id2) + now.getFullYear() * 31 + now.getMonth() * 17 + now.getDate() * 13) % 100000;
+  const rng = seededRandom(seed);
+  return Math.floor(rng() * 101);
+}
+
 function seededRandom(seed) {
-  let s = typeof seed === "bigint" ? Number(seed % 2147483647n) : Math.abs(seed) % 2147483647;
+  let s = seed % 2147483647;
   if (s === 0) s = 1;
   return () => {
     s = (s * 16807) % 2147483647;
@@ -14,65 +21,56 @@ function seededRandom(seed) {
   };
 }
 
-function getLoveScore(id1, id2) {
-  const a = String(id1), b = String(id2);
-  const [lo, hi] = [a, b].sort();
-  let seed = 0;
-  for (const c of (lo + "_" + hi)) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
-  const rng = seededRandom(seed);
-  return Math.floor(rng() * 101);
-}
-
 const QUOTES = {
   SOULMATE: [
-    "Deux cœurs, un univers — alignés pour l'éternité.",
-    "Dans un ciel d'étoiles, tu es ma constellation.",
-    "Certaines âmes se reconnaissent à travers n'importe quelle distance.",
-    "Tu es la gravité qui maintient mon monde.",
-    "À travers les galaxies, je te retrouverais toujours.",
-    "Notre histoire d'amour était écrite dans les étoiles bien avant notre rencontre.",
-    "Deux âmes, une seule étoile — liées pour toujours.",
-    "L'univers a choisi de vous réunir."
+    "💞 Deux cœurs battent à l'unisson — une connexion rare et précieuse.",
+    "✨ Vous êtes faits l'un pour l'autre, une évidence cosmique.",
+    "🌸 L'amour qui vous lie est aussi puissant que l'océan.",
+    "🌟 Vous êtes les étoiles qui s'illuminent mutuellement.",
+    "💫 Une alchimie parfaite, un amour éternel.",
+    "🌹 Votre histoire est écrite dans les cieux.",
+    "💖 Un amour pur et sincère, une rareté absolue.",
+    "🌙 Vous êtes les âmes sœurs que l'univers a choisies."
   ],
   SPARK: [
-    "Quelque chose d'électrique passe entre ces deux âmes.",
-    "L'amour n'a pas besoin d'être parfait — il a juste besoin d'être vrai.",
-    "Les meilleurs chapitres commencent toujours de façon inattendue.",
-    "Il y a une attraction magnétique que les mots ne peuvent expliquer.",
-    "Quand deux cœurs sont destinés, même le silence parle.",
-    "Certaines connexions illuminent tout le ciel.",
-    "Une étincelle vient de s'allumer.",
-    "Le cœur sait reconnaître ce que les mots ne peuvent pas dire."
+    "⚡ Une étincelle électrique — ça promet !",
+    "🔥 La flamme est là, elle n'attend qu'à grandir.",
+    "💕 Une connexion prometteuse, pleine de potentiel.",
+    "🌟 Vous avez tout pour construire quelque chose de beau.",
+    "💞 Une alchimie naissante, à cultiver avec soin.",
+    "✨ Le courant passe, c'est indéniable.",
+    "🌸 Une belle énergie entre vous, à explorer.",
+    "💖 Le début de quelque chose de merveilleux."
   ],
   FRIEND: [
-    "La gemme la plus rare : une amitié qui ne s'efface jamais.",
-    "Les vrais amis sont des racines — ils te tiennent quand les tempêtes arrivent.",
-    "Côte à côte ou à des kilomètres, les vrais liens ne se brisent jamais.",
-    "On ne trouve pas des amis comme ça. L'univers les envoie.",
-    "L'amitié est un langage que le cœur parle couramment.",
-    "Les bonnes amitiés sont des jardins — elles fleurissent avec des soins.",
-    "L'amitié est la forme la plus pure de l'amour.",
-    "Une amitié sincère vaut plus que mille connaissances."
+    "🌿 Une amitié solide et sincère, un trésor rare.",
+    "🤝 Vous êtes faits pour être amis, c'est évident.",
+    "💚 Une complicité naturelle et authentique.",
+    "🌟 Un lien d'amitié qui durera toute la vie.",
+    "🌸 Vous êtes comme deux arbres aux racines entrelacées.",
+    "💫 Une amitié qui traverse les tempêtes.",
+    "🌙 Vous êtes les piliers l'un de l'autre.",
+    "💖 Une confiance mutuelle inébranlable."
   ],
   INCOMPATIBLE: [
-    "Certaines rencontres sont des leçons, pas des destinations.",
-    "Toutes les connexions ne sont pas faites pour durer — et c'est okay.",
-    "Deux cieux différents, deux belles tempêtes.",
-    "L'univers a des chemins séparés en réserve pour ces deux-là.",
-    "Parfois, lâcher prise est la forme la plus courageuse d'amour.",
-    "Des fréquences différentes, des chansons différentes — les deux restent de la musique.",
-    "Deux belles âmes, deux chemins différents.",
-    "Certaines rencontres sont des leçons, pas des destins."
+    "💔 Parfois, les contraires s'attirent... puis se repoussent.",
+    "🌊 Deux océans qui ne se rencontrent pas.",
+    "🌟 Vous êtes beaux séparément, mais pas ensemble.",
+    "💫 Des chemins différents, des leçons différentes.",
+    "🌿 L'amour n'est pas toujours la réponse.",
+    "🌸 Certaines fleurs ne poussent pas dans le même jardin.",
+    "💚 Vous êtes libres, et c'est votre plus grande force.",
+    "🌙 Deux étoiles sur des orbites différentes."
   ],
   NEUTRAL: [
-    "Certaines histoires sont encore en cours d'écriture.",
-    "Chaque grand lien commence par un seul moment.",
-    "Les meilleures choses arrivent souvent sans prévenir.",
-    "Le temps révèle ce que les premières impressions laissent seulement entrevoir.",
-    "Pas encore écrit — mais le stylo est prêt.",
-    "Certains chapitres prennent du temps à être compris.",
-    "Le meilleur reste à venir pour ces deux-là.",
-    "Le temps dira ce que le cœur pressent déjà."
+    "🧡 Le temps vous réserve encore des surprises.",
+    "🌟 Une connexion à explorer, pas encore définie.",
+    "💫 L'avenir vous appartient, tout est possible.",
+    "🌸 Des possibles infinis, une page blanche.",
+    "🌿 Le chemin est encore en construction.",
+    "💚 Vous êtes au début d'une belle aventure.",
+    "🌙 Laissons le temps faire son œuvre.",
+    "💖 Rien n'est écrit, tout reste à écrire."
   ]
 };
 
@@ -327,7 +325,19 @@ function drawBadge(ctx, x, y, text, bgColor, textColor = "#fff") {
   ctx.restore();
 }
 
-async function drawThemeCosmos(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng) {
+function drawMood(ctx, x, y, size, mood, color) {
+  ctx.save();
+  ctx.font = `${size}px Arial`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = color;
+  ctx.fillStyle = color;
+  ctx.fillText(mood, x, y);
+  ctx.restore();
+}
+
+async function drawThemeCosmos(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng, dateStr) {
   const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, W * 0.9);
   bg.addColorStop(0, "#0d0020");
   bg.addColorStop(0.5, "#12003a");
@@ -449,10 +459,17 @@ async function drawThemeCosmos(ctx, W, H, name1, name2, av1, av2, pct, status, q
   ql.forEach((l, i) => ctx.fillText(l, W / 2, 698 + i * 30));
   ctx.restore();
 
+  ctx.save();
+  ctx.font = "14px Arial";
+  ctx.fillStyle = "rgba(255,255,255,0.15)";
+  ctx.textAlign = "center";
+  ctx.fillText(`Analyse du ${dateStr}`, W / 2, H - 25);
+  ctx.restore();
+
   drawECG(ctx, 120, H - 58, W - 240, 34, "#c084fc");
 }
 
-async function drawThemeNeon(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng) {
+async function drawThemeNeon(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng, dateStr) {
   ctx.fillStyle = "#040010";
   ctx.fillRect(0, 0, W, H);
 
@@ -565,6 +582,13 @@ async function drawThemeNeon(ctx, W, H, name1, name2, av1, av2, pct, status, quo
   ql.forEach((l, i) => ctx.fillText(l, W / 2, 680 + i * 27));
   ctx.restore();
 
+  ctx.save();
+  ctx.font = "14px monospace";
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.textAlign = "center";
+  ctx.fillText(`Scan du ${dateStr}`, W / 2, H - 25);
+  ctx.restore();
+
   drawECG(ctx, 100, H - 55, W - 200, 30, "#ff2d95");
 
   ctx.save();
@@ -573,7 +597,7 @@ async function drawThemeNeon(ctx, W, H, name1, name2, av1, av2, pct, status, quo
   ctx.restore();
 }
 
-async function drawThemeNature(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng) {
+async function drawThemeNature(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng, dateStr) {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, "#010d10");
   bg.addColorStop(0.4, "#02261a");
@@ -684,10 +708,17 @@ async function drawThemeNature(ctx, W, H, name1, name2, av1, av2, pct, status, q
   ql.forEach((l, i) => ctx.fillText(l, W / 2, 690 + i * 30));
   ctx.restore();
 
+  ctx.save();
+  ctx.font = "14px Arial";
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.textAlign = "center";
+  ctx.fillText(`Analyse du ${dateStr}`, W / 2, H - 25);
+  ctx.restore();
+
   drawECG(ctx, 100, H - 55, W - 200, 30, "#4ade80");
 }
 
-async function drawThemeAquarelle(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng) {
+async function drawThemeAquarelle(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng, dateStr) {
   ctx.fillStyle = "#fdf6ec";
   ctx.fillRect(0, 0, W, H);
 
@@ -760,10 +791,17 @@ async function drawThemeAquarelle(ctx, W, H, name1, name2, av1, av2, pct, status
   ql.forEach((l, i) => ctx.fillText(l, W / 2, 690 + i * 32));
   ctx.restore();
 
+  ctx.save();
+  ctx.font = "14px Arial";
+  ctx.fillStyle = "rgba(120,60,20,0.15)";
+  ctx.textAlign = "center";
+  ctx.fillText(`Scan du ${dateStr}`, W / 2, H - 25);
+  ctx.restore();
+
   drawECG(ctx, 120, H - 55, W - 240, 28, "#fb923c");
 }
 
-async function drawThemeGlitch(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng) {
+async function drawThemeGlitch(ctx, W, H, name1, name2, av1, av2, pct, status, quote, rng, dateStr) {
   const bg = ctx.createLinearGradient(0, 0, W, H);
   bg.addColorStop(0, "#00050f");
   bg.addColorStop(0.5, "#001525");
@@ -876,6 +914,13 @@ async function drawThemeGlitch(ctx, W, H, name1, name2, av1, av2, pct, status, q
   ctx.restore();
 
   ctx.save();
+  ctx.font = "14px monospace";
+  ctx.fillStyle = "rgba(255,255,255,0.08)";
+  ctx.textAlign = "center";
+  ctx.fillText(`Scan du ${dateStr}`, W / 2, H - 25);
+  ctx.restore();
+
+  ctx.save();
   ctx.fillStyle = "rgba(0,0,0,0.10)";
   for (let i = 0; i < H; i += 4) ctx.fillRect(0, i, W, 2);
   ctx.restore();
@@ -883,19 +928,21 @@ async function drawThemeGlitch(ctx, W, H, name1, name2, av1, av2, pct, status, q
   drawECG(ctx, 100, H - 55, W - 200, 25, "#38bdf8");
 }
 
-async function generateScroll(type, name1, name2, pct, certId) {
+async function generateScroll(type, name1, name2, pct, dateStr) {
   const W = 1000,
     H = 720;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
   const themes = {
-    MARRIAGE: { bg1: "#0a0018", bg2: "#1a0030", accent: "#d4af37", sub: "#c084fc", title: "CERTIFICAT DE MARIAGE", intro: "Unit dans un lien cosmique éternel", seal: "💍", q: getRandom(QUOTES.SOULMATE, Math.random) },
-    FRIENDSHIP: { bg1: "#001a0a", bg2: "#002810", accent: "#4ade80", sub: "#34d399", title: "CERTIFICAT D'AMITIE", intro: "Certifie un lien indéfectible entre", seal: "🌿", q: getRandom(QUOTES.FRIEND, Math.random) },
-    DIVORCE: { bg1: "#080018", bg2: "#0a0025", accent: "#60a5fa", sub: "#94a3b8", title: "DECRET DE SEPARATION", intro: "Confirme des différences irréconciliables entre", seal: "❄️", q: getRandom(QUOTES.INCOMPATIBLE, Math.random) }
+    SOULMATE: { bg1: "#0a0018", bg2: "#1a0030", accent: "#d4af37", sub: "#c084fc", title: "CERTIFICAT D'AMOUR ETERNEL", intro: "Célèbre une connexion cosmique entre", seal: "💍" },
+    SPARK: { bg1: "#1a0a00", bg2: "#2a1500", accent: "#f59e0b", sub: "#fb923c", title: "CERTIFICAT D'ETINCELLE", intro: "Reconnaît une connexion prometteuse entre", seal: "⚡" },
+    FRIEND: { bg1: "#001a0a", bg2: "#002810", accent: "#4ade80", sub: "#34d399", title: "CERTIFICAT D'AMITIE", intro: "Certifie un lien indéfectible entre", seal: "🌿" },
+    NEUTRAL: { bg1: "#1a1500", bg2: "#2a2000", accent: "#fbbf24", sub: "#f59e0b", title: "CERTIFICAT DE POSSIBILITE", intro: "Reconnaît un potentiel entre", seal: "🧡" },
+    INCOMPATIBLE: { bg1: "#080018", bg2: "#0a0025", accent: "#60a5fa", sub: "#94a3b8", title: "DECRET DE SEPARATION", intro: "Confirme des différences entre", seal: "❄️" }
   };
 
-  const t = themes[type];
+  const t = themes[type] || themes.NEUTRAL;
   const bg = ctx.createLinearGradient(0, 0, W, H);
   bg.addColorStop(0, t.bg1);
   bg.addColorStop(1, t.bg2);
@@ -968,18 +1015,16 @@ async function generateScroll(type, name1, name2, pct, certId) {
   ctx.fillStyle = t.sub;
   ctx.fillText(`Score de Compatibilite: ${pct}%`, W / 2, 445);
 
+  const quote = getRandomQuote(type, Math.random);
   ctx.font = "italic 19px Georgia";
   ctx.fillStyle = "rgba(180,180,200,0.7)";
-  const ql = wrapText(ctx, `" ${t.q} "`, 680);
+  const ql = wrapText(ctx, `" ${quote} "`, 680);
   ql.forEach((l, i) => ctx.fillText(l, W / 2, 508 + i * 32));
 
   ctx.font = "15px monospace";
   ctx.fillStyle = "rgba(150,150,170,0.58)";
   ctx.textAlign = "left";
-  ctx.fillText("Delivre le: " + new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" }), 80, H - 60);
-
-  ctx.textAlign = "right";
-  ctx.fillText(`#${certId}`, W - 80, H - 60);
+  ctx.fillText(`Delivre le: ${dateStr}`, 80, H - 60);
 
   ctx.textAlign = "center";
   ctx.beginPath();
@@ -999,10 +1044,13 @@ async function generateScroll(type, name1, name2, pct, certId) {
   return canvas.toBuffer();
 }
 
-const LOADING_THEMES = [
-  { icon: "💘", steps: ["Analyse des cœurs...", "Mesure des vibrations...", "Calcul de compatibilité...", "Révélation finale..."] },
-  { icon: "🔭", steps: ["Alignement des étoiles...", "Calcul du lien cosmique...", "Fréquences des âmes...", "Destin en cours..."] },
-  { icon: "🧬", steps: ["Séquençage ADN de l'amour...", "Analyse des émotions...", "Traitement en cours...", "Révélation de la vérité..."] },
+const LOADING_MESSAGES = [
+  "💘 Analyse des cœurs en fusion...",
+  "🔮 Lecture des ondes cosmiques...",
+  "💞 Mesure de la compatibilité émotionnelle...",
+  "✨ Calcul de l'alchimie entre les âmes...",
+  "🌌 Connexion des fréquences vibratoires...",
+  "💫 Révélation de la vérité universelle..."
 ];
 
 module.exports = {
@@ -1037,11 +1085,11 @@ module.exports = {
         ]));
       }
 
-      const lt = LOADING_THEMES[Math.floor(Math.random() * LOADING_THEMES.length)];
+      const loadingMsgIndex = Math.floor(Math.random() * LOADING_MESSAGES.length);
       await new Promise((res, rej) => {
         api.sendMessage(
           UI([
-            `${lt.icon} ${lt.steps[0]}`,
+            `⏳ ${LOADING_MESSAGES[loadingMsgIndex]}`,
             "---",
             `[${"░".repeat(20)}] 0%`
           ]),
@@ -1052,23 +1100,25 @@ module.exports = {
       });
 
       const progSteps = [25, 50, 75, 100];
+      const msgList = [...LOADING_MESSAGES];
       for (let i = 0; i < progSteps.length; i++) {
-        await sleep(1350);
+        await sleep(1200 + Math.random() * 600);
         const p = progSteps[i],
           f = Math.floor(p / 5),
           e = 20 - f;
+        const nextMsg = msgList[(i + 1) % msgList.length];
         await api.editMessage(
           UI([
-            `${lt.icon} ${lt.steps[Math.min(i, lt.steps.length - 1)]}`,
+            `⏳ ${nextMsg}`,
             "---",
             `[${"█".repeat(f)}${"░".repeat(e)}] ${p}%`
           ]),
           loadingMsg.messageID
         ).catch(() => {});
       }
-      await sleep(700);
+      await sleep(600);
       await api.editMessage(UI(["✅ Analyse terminée !"]), loadingMsg.messageID).catch(() => {});
-      await sleep(1100);
+      await sleep(1000);
       await api.unsendMessage(loadingMsg.messageID, threadID).catch(() => {});
 
       let threadInfo;
@@ -1078,31 +1128,31 @@ module.exports = {
         resolved[1]?.name || resolveName(user2, threadInfo, api)
       ]);
 
+      const now = new Date();
+      const dateStr = now.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+      const timeStr = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
       const lovePercent = getLoveScore(user1, user2);
 
       let seed = 0;
-      for (const c of (user1 + user2)) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+      for (const c of (user1 + user2 + now.getDate() + now.getMonth() + now.getFullYear()))
+        seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
       const rng = seededRandom(seed);
 
-      let themeKey, status, scrollType, quoteCategory;
+      let themeKey, status, scrollType;
       if (lovePercent >= 85) { themeKey = "COSMOS";
-        status = "✦ AMES SOEURS ✦";
-        scrollType = "MARRIAGE";
-        quoteCategory = "SOULMATE"; } else if (lovePercent >= 60) { themeKey = "NEON";
-        status = "⚡ ETINCELLE AMOUREUSE ⚡";
-        scrollType = "FRIENDSHIP";
-        quoteCategory = "SPARK"; } else if (lovePercent >= 30) { themeKey = "NATURE";
-        status = "🌿 VRAIS AMIS 🌿";
-        scrollType = "FRIENDSHIP";
-        quoteCategory = "FRIEND"; } else if (lovePercent >= 16) { themeKey = "AQUARELLE";
-        status = "🧡 NEUTRE 🧡";
-        scrollType = null;
-        quoteCategory = "NEUTRAL"; } else { themeKey = "GLITCH";
-        status = "❄️ INCOMPATIBLE ❄️";
-        scrollType = "DIVORCE";
-        quoteCategory = "INCOMPATIBLE"; }
+        status = "🌟 AMES SOEURS";
+        scrollType = "SOULMATE"; } else if (lovePercent >= 60) { themeKey = "NEON";
+        status = "⚡ ETINCELLE";
+        scrollType = "SPARK"; } else if (lovePercent >= 30) { themeKey = "NATURE";
+        status = "🌿 VRAIS AMIS";
+        scrollType = "FRIEND"; } else if (lovePercent >= 16) { themeKey = "AQUARELLE";
+        status = "🧡 POSSIBILITE";
+        scrollType = "NEUTRAL"; } else { themeKey = "GLITCH";
+        status = "❄️ INCOMPATIBLE";
+        scrollType = "INCOMPATIBLE"; }
 
-      const quote = getRandomQuote(quoteCategory, rng);
+      const quote = getRandomQuote(scrollType, rng);
       const [av1, av2] = await Promise.all([loadAvatar(user1), loadAvatar(user2)]);
 
       const W = 1200,
@@ -1110,19 +1160,21 @@ module.exports = {
       const canvas = createCanvas(W, H);
       const ctx = canvas.getContext("2d");
       const drawFns = { COSMOS: drawThemeCosmos, NEON: drawThemeNeon, NATURE: drawThemeNature, AQUARELLE: drawThemeAquarelle, GLITCH: drawThemeGlitch };
-      await drawFns[themeKey](ctx, W, H, name1, name2, av1, av2, lovePercent, status, quote, rng);
-
-      ctx.save();
-      ctx.textAlign = "right";
-      ctx.font = "11px Arial";
-      ctx.fillStyle = "rgba(255,255,255,0.08)";
-      ctx.fillText("cupidon v10.0", W - 10, H - 8);
-      ctx.restore();
+      await drawFns[themeKey](ctx, W, H, name1, name2, av1, av2, lovePercent, status, quote, rng, `${dateStr} à ${timeStr}`);
 
       const imgPath = path.join(__dirname, `cupidon_${Date.now()}.png`);
       fs.writeFileSync(imgPath, canvas.toBuffer());
 
-      const scoreBar = "❤".repeat(Math.floor(lovePercent / 10)) + "🖤".repeat(10 - Math.floor(lovePercent / 10));
+      const scoreBar = "❤️".repeat(Math.floor(lovePercent / 10)) + "🖤".repeat(10 - Math.floor(lovePercent / 10));
+
+      const moodEmojis = {
+        "🌟 AMES SOEURS": "💞",
+        "⚡ ETINCELLE": "🔥",
+        "🌿 VRAIS AMIS": "💚",
+        "🧡 POSSIBILITE": "🧡",
+        "❄️ INCOMPATIBLE": "💔"
+      };
+      const mood = moodEmojis[status] || "💞";
 
       await message.reply({
         body: UI([
@@ -1133,22 +1185,24 @@ module.exports = {
           `📍 Statut : ${status}`,
           `💬 "${quote}"`,
           "---",
-          `🔁 Le résultat est permanent pour ce duo.`
+          `📅 ${dateStr} à ${timeStr}`,
+          mood
         ]),
         attachment: fs.createReadStream(imgPath)
       });
       fs.unlinkSync(imgPath);
 
       if (scrollType) {
-        const certId = Math.abs((seed % 900000) + 100000);
-        const scrollBuf = await generateScroll(scrollType, name1, name2, lovePercent, certId);
+        const scrollBuf = await generateScroll(scrollType, name1, name2, lovePercent, `${dateStr} à ${timeStr}`);
         const scrollPath = path.join(__dirname, `scroll_${Date.now()}.png`);
         fs.writeFileSync(scrollPath, scrollBuf);
 
         const notes = {
-          MARRIAGE: `💍 Lien éternel scellé — ${name1} & ${name2} sont des âmes sœurs cosmiques.\n🔖 Certificat n°${certId}`,
-          FRIENDSHIP: `🌿 Amitié certifiée — ${name1} & ${name2} partagent un lien indéfectible.\n🔖 Certificat n°${certId}`,
-          DIVORCE: `❄️ Séparation confirmée — ${name1} & ${name2} empruntent des chemins différents.\n🔖 Décret n°${certId}`
+          SOULMATE: `💞 Célébration d'un amour cosmique — ${name1} & ${name2} sont des âmes sœurs.`,
+          SPARK: `⚡ Une étincelle prometteuse — ${name1} & ${name2} ont un potentiel magnifique.`,
+          FRIEND: `🌿 Une amitié sincère et durable — ${name1} & ${name2} sont de vrais amis.`,
+          NEUTRAL: `🧡 Un potentiel à explorer — ${name1} & ${name2} ont un chemin à écrire.`,
+          INCOMPATIBLE: `❄️ Des chemins différents — ${name1} & ${name2} suivent leur propre voie.`
         };
 
         await message.reply({
