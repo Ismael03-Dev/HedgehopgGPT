@@ -6,9 +6,11 @@ const axios = require("axios");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function getLoveScore(id1, id2) {
-  const now = new Date();
-  const seed = (parseInt(id1) + parseInt(id2) + now.getFullYear() * 31 + now.getMonth() * 17 + now.getDate() * 13) % 100000;
-  const rng = seededRandom(seed);
+  const now = Date.now();
+  const daySeed = Math.floor(now / 86400000);
+  const hourSeed = Math.floor(now / 3600000);
+  const baseSeed = (parseInt(id1) + parseInt(id2) + daySeed + hourSeed) % 2147483647;
+  const rng = seededRandom(baseSeed);
   return Math.floor(rng() * 101);
 }
 
@@ -1132,12 +1134,7 @@ module.exports = {
       const dateStr = now.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
       const timeStr = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
-      const lovePercent = getLoveScore(user1, user2);
-
-      let seed = 0;
-      for (const c of (user1 + user2 + now.getDate() + now.getMonth() + now.getFullYear()))
-        seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
-      const rng = seededRandom(seed);
+      const lovePercent = Math.floor(Math.random() * 101);
 
       let themeKey, status, scrollType;
       if (lovePercent >= 85) { themeKey = "COSMOS";
@@ -1152,6 +1149,8 @@ module.exports = {
         status = "❄️ INCOMPATIBLE";
         scrollType = "INCOMPATIBLE"; }
 
+      const seed = Date.now();
+      const rng = seededRandom(seed);
       const quote = getRandomQuote(scrollType, rng);
       const [av1, av2] = await Promise.all([loadAvatar(user1), loadAvatar(user2)]);
 
