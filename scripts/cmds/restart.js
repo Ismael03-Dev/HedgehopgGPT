@@ -1,4 +1,5 @@
 const fs = require("fs-extra");
+const path = require("path");
 
 module.exports = {
 	config: {
@@ -28,21 +29,33 @@ module.exports = {
 	},
 
 	onLoad: function ({ api }) {
-		const pathFile = `${__dirname}/tmp/restart.txt`;
+		const pathFile = path.join(__dirname, "tmp", "restart.txt");
 		if (fs.existsSync(pathFile)) {
-			const [tid, time] = fs.readFileSync(pathFile, "utf-8").split(" ");
-			fs.unlinkSync(pathFile);
-			setTimeout(() => {
-				api.sendMessage(`✅ | Bot restarted\n⏰ | Time: ${(Date.now() - time) / 1000}s`, tid)
-					.catch(err => console.error("[restart] Failed to send restart message:", err.message));
-			}, 5000);
+			try {
+				const [tid, time] = fs.readFileSync(pathFile, "utf-8").split(" ");
+				fs.unlinkSync(pathFile);
+				setTimeout(() => {
+					api.sendMessage(`✅ | Bot restarted\n⏰ | Time: ${(Date.now() - time) / 1000}s`, tid)
+						.catch(err => console.error("[restart] Failed to send restart message:", err.message));
+				}, 5000);
+			} catch (err) {
+				console.error("[restart] Error handling restart file:", err.message);
+			}
 		}
 	},
 
 	onStart: async function ({ message, event, getLang }) {
-		const pathFile = `${__dirname}/tmp/restart.txt`;
-		fs.writeFileSync(pathFile, `${event.threadID} ${Date.now()}`);
-		await message.reply(getLang("restartting"));
-		process.exit(2);
+		const pathFile = path.join(__dirname, "tmp", "restart.txt");
+		try {
+			if (!fs.existsSync(path.join(__dirname, "tmp"))) {
+				fs.mkdirSync(path.join(__dirname, "tmp"));
+			}
+			fs.writeFileSync(pathFile, `${event.threadID} ${Date.now()}`);
+			await message.reply(getLang("restartting"));
+			process.exit(2);
+		} catch (err) {
+			console.error("[restart] Error during restart:", err.message);
+			await message.reply("❌ | Failed to restart bot.");
+		}
 	}
 };
